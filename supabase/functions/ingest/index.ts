@@ -14,59 +14,107 @@ function corsResponse(body: unknown, status = 200) {
   });
 }
 
-// Many trackers "ping" a URL with query params; others POST JSON/XML.
-// We support the most common conventions so any device can be onboarded
-// without firmware changes.
+function toNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseTeltonikaCoord(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // Common: "56.9484,24.1019" or "56.9484" (already decimal)
+  if (s.includes(",")) {
+    const parts = s.split(",");
+    if (parts.length >= 1) {
+      const n = parseFloat(parts[0].trim());
+      return Number.isFinite(n) ? n : null;
+    }
+  }
+
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeTimestamp(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // Seconds epoch from Teltonika is common (10 digits). Milliseconds epoch is 13 digits.
+  if (/^\d+$/.test(s)) {
+    const num = Number(s);
+    if (s.length === 13) return new Date(num).toISOString();
+    if (s.length === 10) return new Date(num * 1000).toISOString();
+  }
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function parsePayload(url: URL, body: Record<string, unknown> | null) {
   const p = (k: string) => url.searchParams.get(k) ?? body?.[k];
 
   const ident =
-    p("imei") ?? p("id") ?? p("deviceId") ?? p("device_id") ?? p("sn") ?? p("uniqueId");
-  let lat = p("lat") ?? p("latitude");
-  let lon = p("lon") ?? p("lng") ?? p("longitude");
+    p("imei") ?? p("id") ?? p("device_id") ?? p("sn") ?? p("uniqueId") ?? p("token");
 
-  // NMEA-style: lat="5001.43510,N" or lon="03031.64912,E"
-  function parseCoord(v: string | unknown): number | null {
-    if (v === null || v === undefined) return null;
-    const s = String(v);
-    if (s.includes(",")) {
-      const [degMin, hemi] = s.split(",");
-      const deg = parseFloat(degMin);
-      if (isNaN(deg)) return null;
-      const d = Math.floor(deg / 100);
-      const m = deg - d * 100;
-      const dec = d + m / 60;
-      return hemi?.toUpperCase() === "S" || hemi?.toUpperCase() === "W" ? -dec : dec;
-    }
-    const n = parseFloat(s);
-    return isNaN(n) ? null : n;
+  // Teltonika fields seen in collectors/webhooks often use:
+  // lat/latitude, lon/longitude, coordinates like "lat,lon", speed, course/angle, alt/altitude/hgt,
+  // acc/accuracy, power/battery, ignition/din1, timestamp/gps_time/utc_time.
+  const latRaw = p("lat") ?? p("latitude");
+  const lonRaw =
+    p("lon") ?? p("longitude") ?? p("lng") ?? p("coordinates") ?? p("coordinate") ?? p("position");
+
+  const latitude = parseTeltonikaCoord(latRaw) ?? null;
+
+  let longitude: number | null = parseTeltonikaCoord(lonRaw);
+  if (longitude === null && typeof body?.["coordinates"] === "string") {
+    // e.g., "56.9484,24.1019"
+    longitude = parseTeltonikaCoord(body["coordinates"]);
+  }
+  if (longitude === null && typeof body?.["position"] === "string") {
+    longitude = parseTeltonikaCoord(body["position"]);
   }
 
   const speedRaw = p("speed") ?? p("spd");
   let speed_kmh: number | null = null;
   if (speedRaw !== null && speedRaw !== undefined) {
-    const s = parseFloat(String(speedRaw));
-    if (!isNaN(s)) {
-      // Many devices send knots — assume knots when value looks small for road use, else km/h
-      speed_kmh = s <= 250 ? Math.round(s * 1.852 * 10) / 10 : s;
-    }
+    const n = toNumber(speedRaw);
+    if (n !== null) speed_kmh = n <= 250 ? Number((n * 1.852).toFixed(1)) : n;
   }
+
+  const courseRaw = p("course") ?? p("angle") ?? p("bearing");
+  const altitudeRaw = p("alt") ?? p("altitude") ?? p("height") ?? p("hgt");
+  const accuracyRaw = p("accuracy") ?? p("hdop") ?? p("pdop") ?? p("vacc");
+  const batteryRaw = p("batt") ?? p("battery") ?? p("power") ?? p("ext_power");
+
+  const ignitionRaw =
+    p("ignition") ?? p("ign") ?? p("din1") ?? p("ign_state") ?? p("on_ignition") ?? p("engine");
+
+  let ignition: boolean | null = null;
+  if (ignitionRaw !== null && ignitionRaw !== undefined) {
+    const s = String(ignitionRaw).toLowerCase().trim();
+    if (["1", "true", "on", "yes"].includes(s)) ignition = true;
+    else if (["0", "false", "off", "no"].includes(s)) ignition = false;
+  }
+
+  const recorded_at = normalizeTimestamp(p("timestamp") ?? p("time") ?? p("gps_time") ?? p("utc_time"));
 
   return {
     ident: ident ? String(ident).trim() : null,
-    latitude: parseCoord(lat),
-    longitude: parseCoord(lon),
+    latitude,
+    longitude,
     speed_kmh,
-    course: p("course") ? parseFloat(String(p("course"))) : p("angle") ? parseFloat(String(p("angle"))) : null,
-    altitude: p("alt") ? parseFloat(String(p("alt"))) : p("altitude") ? parseFloat(String(p("altitude"))) : null,
-    accuracy: p("accuracy") ? parseFloat(String(p("accuracy"))) : p("hdop") ? parseFloat(String(p("hdop"))) : null,
-    battery: p("batt") ? parseFloat(String(p("batt"))) : p("battery") ? parseFloat(String(p("battery"))) : p("power") ? parseFloat(String(p("power"))) : null,
-    ignition: p("ignition") !== undefined && p("ignition") !== null
-      ? ["1", "true", "on", "ON", "yes"].includes(String(p("ignition")))
-      : p("in1") !== undefined && p("in1") !== null
-        ? ["1", "true", "on"].includes(String(p("in1")))
-        : null,
-    recorded_at: p("timestamp") ?? p("time") ?? p("gps_time") ?? p("device_time"),
+    course: courseRaw !== null && courseRaw !== undefined ? toNumber(courseRaw) : null,
+    altitude: altitudeRaw !== null && altitudeRaw !== undefined ? toNumber(altitudeRaw) : null,
+    accuracy: accuracyRaw !== null && accuracyRaw !== undefined ? toNumber(accuracyRaw) : null,
+    battery: batteryRaw !== null && batteryRaw !== undefined ? toNumber(batteryRaw) : null,
+    ignition,
+    recorded_at: recorded_at ? new Date(recorded_at).toISOString() : null,
   };
 }
 
@@ -118,7 +166,7 @@ serve(async (req) => {
     .maybeSingle();
 
   const now = new Date();
-  const recordedAt = data.recorded_at ? new Date(String(data.recorded_at)) : now;
+  const recordedAt = data.recorded_at ? new Date(data.recorded_at) : now;
   if (isNaN(recordedAt.getTime())) recordedAt.setTime(now.getTime());
 
   const position = {
@@ -148,8 +196,15 @@ serve(async (req) => {
   // Device heartbeat
   await supabase
     .from("gps_devices")
-    .update({ last_seen_at: now.toISOString(), status: device.status === "IN_STOCK" ? "ACTIVE" : device.status })
+    .update({
+      last_seen_at: now.toISOString(),
+      status: device.status === "IN_STOCK" ? "ACTIVE" : device.status,
+    })
     .eq("id", device.id);
 
-  return corsResponse({ ok: true, device_id: device.id, recorded_at: position.recorded_at });
+  return corsResponse({
+    ok: true,
+    device_id: device.id,
+    recorded_at: position.recorded_at,
+  });
 });
