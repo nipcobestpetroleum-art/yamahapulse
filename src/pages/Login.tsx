@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PasswordInput } from "@/components/password-input";
+import { PasswordStrength } from "@/components/password-strength";
 import { useAuth } from "@/contexts/auth-context";
 
 const FEATURES = [
@@ -143,9 +145,8 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
-                  <Input
+                  <PasswordInput
                     id="signin-password"
-                    type="password"
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
@@ -207,9 +208,8 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
-                  <Input
+                  <PasswordInput
                     id="signup-password"
-                    type="password"
                     required
                     minLength={6}
                     autoComplete="new-password"
@@ -218,6 +218,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="bg-card/60"
                   />
+                  <PasswordStrength password={password} />
                 </div>
                 {error && (
                   <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
