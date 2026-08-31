@@ -37,7 +37,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const ORG_STORAGE_KEY = "fleetpulse.currentOrg";
+const ORG_STORAGE_KEY = "yamahapulse.currentOrg";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);

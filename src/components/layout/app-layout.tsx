@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { cn } from "@/lib/utils";
 
-const COLLAPSE_KEY = "fleetpulse.sidebarCollapsed";
+const COLLAPSE_KEY = "yamahapulse.sidebarCollapsed";
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === "1");

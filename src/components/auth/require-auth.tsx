@@ -9,7 +9,7 @@ export function FullScreenLoader() {
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
         <Radar className="h-6 w-6 animate-pulse text-primary" />
       </div>
-      <p className="text-sm text-muted-foreground">Loading FleetPulse…</p>
+      <p className="text-sm text-muted-foreground">Loading YamahaPulse…</p>
     </div>
   );
 }

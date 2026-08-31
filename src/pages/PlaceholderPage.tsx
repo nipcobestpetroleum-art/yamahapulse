@@ -23,7 +23,7 @@ export default function PlaceholderPage() {
           <h3 className="text-base font-semibold text-foreground">{title} is on the roadmap</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             This module is scheduled for {phase ? `Phase ${phase}` : "an upcoming phase"} of the
-            FleetPulse rollout. Phase 1 covers authentication, organizations, the dashboard,
+            YamahaPulse rollout. Phase 1 covers authentication, organizations, the dashboard,
             vehicles and GPS devices.
           </p>
         </div>

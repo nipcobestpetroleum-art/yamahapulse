@@ -73,7 +73,7 @@ export default function Login() {
             <Radar className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-base font-bold tracking-tight">FleetPulse</p>
+            <p className="text-base font-bold tracking-tight">YamahaPulse</p>
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Telematics Platform
             </p>
@@ -112,7 +112,7 @@ export default function Login() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
               <Radar className="h-5 w-5 text-primary" />
             </div>
-            <p className="text-base font-bold tracking-tight">FleetPulse</p>
+            <p className="text-base font-bold tracking-tight">YamahaPulse</p>
           </div>
 
           <h2 className="text-xl font-semibold tracking-tight">Welcome back</h2>

@@ -88,7 +88,7 @@ export default function Onboarding() {
     }
     await refreshMemberships();
     setSubmitting(false);
-    showSuccess("Organization created. Welcome to FleetPulse!");
+    showSuccess("Organization created. Welcome to YamahaPulse!");
     navigate("/dashboard", { replace: true });
   };
 

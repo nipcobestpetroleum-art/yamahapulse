@@ -46,7 +46,7 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onCloseMobile }: A
             <Radar className="h-5 w-5 text-primary" />
           </div>
           <div className={cn("min-w-0", collapsed && "lg:hidden")}>
-            <p className="truncate text-sm font-bold tracking-tight text-foreground">FleetPulse</p>
+            <p className="truncate text-sm font-bold tracking-tight text-foreground">YamahaPulse</p>
             <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Telematics
             </p>
