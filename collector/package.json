@@ -1,0 +1,11 @@
+{
+  "name": "yamahapulse-teltonika-collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Teltonika FMB920 TCP collector -> forwards AVL records to the YamahaPulse ingest endpoint",
+  "scripts": {
+    "start": "node server.js",
+    "simulate": "node simulate.js"
+  }
+}

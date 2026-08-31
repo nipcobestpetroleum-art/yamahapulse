@@ -22,21 +22,21 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseTeltonikaCoord(v: unknown): number | null {
+function parseCoordValue(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
   if (!s) return null;
 
-  // Common: "56.9484,24.1019" or "56.9484" (already decimal)
-  if (s.includes(",")) {
-    const parts = s.split(",");
-    if (parts.length >= 1) {
-      const n = parseFloat(parts[0].trim());
-      return Number.isFinite(n) ? n : null;
-    }
+  // NMEA-style: "3013.562,E" or "5546.123,N"
+  const nmea = s.match(/^(\d+(?:\.\d+)?),?\s*([NSEW])$/i);
+  if (nmea) {
+    const raw = parseFloat(nmea[1]);
+    const deg = Math.floor(raw / 100);
+    const dec = deg + (raw - deg * 100) / 60;
+    return nmea[2].toUpperCase() === "S" || nmea[2].toUpperCase() === "W" ? -dec : dec;
   }
 
-  const n = parseFloat(s);
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -45,7 +45,7 @@ function normalizeTimestamp(v: unknown): string | null {
   const s = String(v).trim();
   if (!s) return null;
 
-  // Seconds epoch from Teltonika is common (10 digits). Milliseconds epoch is 13 digits.
+  // Seconds epoch (10 digits) or milliseconds epoch (13 digits)
   if (/^\d+$/.test(s)) {
     const num = Number(s);
     if (s.length === 13) return new Date(num).toISOString();
@@ -62,29 +62,18 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
   const ident =
     p("imei") ?? p("id") ?? p("device_id") ?? p("sn") ?? p("uniqueId") ?? p("token");
 
-  // Teltonika fields seen in collectors/webhooks often use:
-  // lat/latitude, lon/longitude, coordinates like "lat,lon", speed, course/angle, alt/altitude/hgt,
-  // acc/accuracy, power/battery, ignition/din1, timestamp/gps_time/utc_time.
-  const latRaw = p("lat") ?? p("latitude");
-  const lonRaw =
-    p("lon") ?? p("longitude") ?? p("lng") ?? p("coordinates") ?? p("coordinate") ?? p("position");
+  const latitude = parseCoordValue(p("lat") ?? p("latitude"));
+  const longitude = parseCoordValue(p("lon") ?? p("longitude") ?? p("lng"));
 
-  const latitude = parseTeltonikaCoord(latRaw) ?? null;
-
-  let longitude: number | null = parseTeltonikaCoord(lonRaw);
-  if (longitude === null && typeof body?.["coordinates"] === "string") {
-    // e.g., "56.9484,24.1019"
-    longitude = parseTeltonikaCoord(body["coordinates"]);
-  }
-  if (longitude === null && typeof body?.["position"] === "string") {
-    longitude = parseTeltonikaCoord(body["position"]);
-  }
-
-  const speedRaw = p("speed") ?? p("spd");
+  // speed_kmh is trusted as-is (our Teltonika collector sends it).
+  // Legacy `speed` could be knots from some trackers, so convert small values.
   let speed_kmh: number | null = null;
-  if (speedRaw !== null && speedRaw !== undefined) {
-    const n = toNumber(speedRaw);
-    if (n !== null) speed_kmh = n <= 250 ? Number((n * 1.852).toFixed(1)) : n;
+  const explicit = toNumber(p("speed_kmh") ?? p("kmh"));
+  if (explicit !== null) {
+    speed_kmh = explicit;
+  } else {
+    const raw = toNumber(p("speed") ?? p("spd"));
+    if (raw !== null) speed_kmh = raw <= 250 ? Number((raw * 1.852).toFixed(1)) : raw;
   }
 
   const courseRaw = p("course") ?? p("angle") ?? p("bearing");
@@ -114,7 +103,7 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     accuracy: accuracyRaw !== null && accuracyRaw !== undefined ? toNumber(accuracyRaw) : null,
     battery: batteryRaw !== null && batteryRaw !== undefined ? toNumber(batteryRaw) : null,
     ignition,
-    recorded_at: recorded_at ? new Date(recorded_at).toISOString() : null,
+    recorded_at,
   };
 }
 
