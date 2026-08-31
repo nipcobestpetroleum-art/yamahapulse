@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Loader2, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FullScreenLoader } from "@/components/auth/require-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { showError, showSuccess } from "@/utils/toast";
@@ -63,7 +64,7 @@ const TIMEZONES = [
 ];
 
 export default function Onboarding() {
-  const { refreshMemberships } = useAuth();
+  const { memberships, refreshMemberships } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -71,6 +72,14 @@ export default function Onboarding() {
   const [country, setCountry] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   const [submitting, setSubmitting] = useState(false);
+
+  // Users who already belong to an organization should never see onboarding —
+  // send them to their organization's dashboard instead.
+  useEffect(() => {
+    if (memberships.length > 0 && !submitting) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [memberships, submitting, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +100,8 @@ export default function Onboarding() {
     showSuccess("Organization created. Welcome to YamahaPulse!");
     navigate("/dashboard", { replace: true });
   };
+
+  if (memberships.length > 0) return <FullScreenLoader />;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">

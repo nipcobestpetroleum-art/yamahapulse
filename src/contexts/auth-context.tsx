@@ -110,10 +110,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadForUser]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  }, []);
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      // Wait until profile + organization memberships are loaded so the router
+      // can send the user to their dashboard instead of onboarding.
+      if (data.user) await loadForUser(data.user);
+      return { error: null };
+    },
+    [loadForUser],
+  );
 
   const signUp = useCallback(
     async (email: string, password: string, firstName: string, lastName: string) => {

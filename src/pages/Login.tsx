@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { Fuel, Loader2, MapPin, Radar, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ const FEATURES = [
 ];
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
+  const { session, signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -39,6 +39,10 @@ export default function Login() {
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Already signed in — go straight to the right place (the "/" route decides
+  // between this user's dashboard and onboarding based on their memberships).
+  if (session) return <Navigate to="/" replace />;
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -46,7 +50,7 @@ export default function Login() {
     const { error: signInError } = await signIn(email.trim(), password);
     setSubmitting(false);
     if (signInError) setError(signInError);
-    else navigate("/dashboard", { replace: true });
+    else navigate("/", { replace: true });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -64,7 +68,7 @@ export default function Login() {
     if (signUpError) setError(signUpError);
     else if (needsConfirmation)
       setNotice("Account created. Check your email to confirm your address, then sign in.");
-    else navigate("/dashboard", { replace: true });
+    else navigate("/", { replace: true });
   };
 
   return (
