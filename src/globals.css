@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Leaflet map (required for proper map rendering) */
+@import "leaflet/dist/leaflet.css";
+
 @layer base {
   :root {
     --background: 224 26% 6%;
@@ -78,4 +81,9 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.4);
   }
+}
+
+/* Ensure leaflet containers inherit dark UI border styling nicely */
+.leaflet-container {
+  background: hsl(var(--card));
 }

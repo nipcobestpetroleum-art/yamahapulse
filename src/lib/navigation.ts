@@ -1,3 +1,4 @@
+// ... (only change: Live Tracking implemented flag)
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -65,7 +66,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Fleet",
     icon: Car,
     items: [
-      { title: "Live Tracking", href: "/fleet/live", icon: Radar },
+      { title: "Live Tracking", href: "/fleet/live", icon: Radar, implemented: true },
       { title: "Vehicles", href: "/vehicles", icon: Car, implemented: true },
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
       { title: "Drivers", href: "/fleet/drivers", icon: Users },
@@ -73,6 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Routes", href: "/fleet/routes", icon: Navigation },
     ],
   },
+  // ... keep rest unchanged
   {
     label: "Monitoring",
     icon: Map,

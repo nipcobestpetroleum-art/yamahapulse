@@ -1,17 +1,17 @@
-import { Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
-import { RequireAuth, FullScreenLoader } from "@/components/auth/require-auth";
+import { RequireAuth } from "@/components/auth/require-auth";
 import { AppLayout } from "@/components/layout/app-layout";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
+import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -19,7 +19,7 @@ const queryClient = new QueryClient();
 
 function RootRedirect() {
   const { session, memberships, loading } = useAuth();
-  if (loading) return <FullScreenLoader />;
+  if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
   if (memberships.length === 0) return <Navigate to="/onboarding" replace />;
   return <Navigate to="/dashboard" replace />;
@@ -53,6 +53,11 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />
+
+              {/* Phase 2 */}
+              <Route path="/fleet/live" element={<LiveTrackingPage />} />
+
+              {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />
               <Route path="/monitoring/*" element={<PlaceholderPage />} />
               <Route path="/fuel/*" element={<PlaceholderPage />} />
