@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Droplets, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Droplets, History, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,6 +31,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { SensorFormDialog } from "@/components/assets/sensor-form-dialog";
+import { SensorReadingsDialog } from "@/components/assets/sensor-readings-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { TECH_DELETE_ROLES, TECH_WRITE_ROLES, hasAnyRole } from "@/lib/roles";
@@ -48,6 +50,7 @@ export default function SensorsPage() {
   const [editing, setEditing] = useState<AssetSensor | null>(null);
   const [deleting, setDeleting] = useState<AssetSensor | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [viewingHistory, setViewingHistory] = useState<AssetSensor | null>(null);
 
   const canWrite = hasAnyRole(currentRole, TECH_WRITE_ROLES);
   const canDelete = hasAnyRole(currentRole, TECH_DELETE_ROLES);
@@ -151,7 +154,7 @@ export default function SensorsPage() {
                 <TableHead>Sensor</TableHead>
                 <TableHead className="hidden md:table-cell">Type</TableHead>
                 <TableHead className="hidden lg:table-cell">Vehicle</TableHead>
-                <TableHead className="hidden lg:table-cell">Device</TableHead>
+                <TableHead className="hidden lg:table-cell">Last reading</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -172,7 +175,21 @@ export default function SensorsPage() {
                     <span className="text-sm text-muted-foreground">{s.vehicle?.name ?? "—"}</span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <span className="text-sm text-muted-foreground">{s.device?.name ?? "—"}</span>
+                    {s.last_value != null ? (
+                      <div>
+                        <p className="text-sm font-medium">
+                          {s.last_value}
+                          {s.unit ?? ""}
+                        </p>
+                        {s.last_reading_at && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(s.last_reading_at), { addSuffix: true })}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No data yet</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -188,37 +205,39 @@ export default function SensorsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {(canWrite || canDelete) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canWrite && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditing(s);
-                                setFormOpen(true);
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                          )}
-                          {canDelete && (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleting(s)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setViewingHistory(s)}>
+                          <History className="mr-2 h-4 w-4" />
+                          View history
+                        </DropdownMenuItem>
+                        {canWrite && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditing(s);
+                              setFormOpen(true);
+                            }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleting(s)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -235,6 +254,12 @@ export default function SensorsPage() {
           setFormOpen(false);
           load();
         }}
+      />
+
+      <SensorReadingsDialog
+        open={!!viewingHistory}
+        onOpenChange={(open) => !open && setViewingHistory(null)}
+        sensor={viewingHistory}
       />
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>

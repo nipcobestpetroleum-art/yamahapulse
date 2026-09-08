@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Gauge, Users } from "lucide-react";
+import { AlertTriangle, Gauge, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -18,11 +18,34 @@ import { showError } from "@/utils/toast";
 import { cn } from "@/lib/utils";
 import type { Driver, DeviceEvent } from "@/types/database";
 
+const TRACKED_TYPES = [
+  "OVERSPEED",
+  "HARSH_ACCEL",
+  "HARSH_BRAKE",
+  "HARSH_CORNER",
+  "CRASH",
+  "IDLE",
+] as const;
+
+// Weighted penalty per event type — crashes and overspeeding hurt the most.
+const PENALTY: Record<string, number> = {
+  OVERSPEED: 4,
+  HARSH_ACCEL: 3,
+  HARSH_BRAKE: 3,
+  HARSH_CORNER: 3,
+  CRASH: 25,
+  IDLE: 1,
+};
+
 interface DriverScore {
   driver: Driver;
   overspeedCount: number;
+  harshAccelCount: number;
+  harshBrakeCount: number;
+  harshCornerCount: number;
+  crashCount: number;
   idleCount: number;
-  harshEventCount: number;
+  totalEvents: number;
   score: number;
 }
 
@@ -54,9 +77,9 @@ export default function DriverBehaviourPage() {
           .from("device_events")
           .select("*")
           .eq("organization_id", currentOrg.id)
-          .in("type", ["OVERSPEED", "IDLE"])
+          .in("type", TRACKED_TYPES as unknown as string[])
           .gte("created_at", since)
-          .limit(2000),
+          .limit(5000),
       ]);
 
     setLoading(false);
@@ -73,21 +96,48 @@ export default function DriverBehaviourPage() {
   }, [load]);
 
   const scores = useMemo<DriverScore[]>(() => {
-    return drivers.map((d) => {
-      const vehicleEvents = events.filter((e) => e.vehicle_id === d.vehicle_id);
-      const overspeedCount = vehicleEvents.filter((e) => e.type === "OVERSPEED").length;
-      const idleCount = vehicleEvents.filter((e) => e.type === "IDLE").length;
-      const harshEventCount = overspeedCount + idleCount;
-      const score = Math.max(0, Math.min(100, 100 - overspeedCount * 5 - idleCount * 1));
-      return { driver: d, overspeedCount, idleCount, harshEventCount, score };
-    }).sort((a, b) => a.score - b.score);
+    return drivers
+      .map((d) => {
+        const vehicleEvents = events.filter((e) => e.vehicle_id === d.vehicle_id);
+        const count = (type: string) => vehicleEvents.filter((e) => e.type === type).length;
+
+        const overspeedCount = count("OVERSPEED");
+        const harshAccelCount = count("HARSH_ACCEL");
+        const harshBrakeCount = count("HARSH_BRAKE");
+        const harshCornerCount = count("HARSH_CORNER");
+        const crashCount = count("CRASH");
+        const idleCount = count("IDLE");
+        const totalEvents =
+          overspeedCount + harshAccelCount + harshBrakeCount + harshCornerCount + crashCount + idleCount;
+
+        const penalty =
+          overspeedCount * PENALTY.OVERSPEED +
+          harshAccelCount * PENALTY.HARSH_ACCEL +
+          harshBrakeCount * PENALTY.HARSH_BRAKE +
+          harshCornerCount * PENALTY.HARSH_CORNER +
+          crashCount * PENALTY.CRASH +
+          idleCount * PENALTY.IDLE;
+
+        return {
+          driver: d,
+          overspeedCount,
+          harshAccelCount,
+          harshBrakeCount,
+          harshCornerCount,
+          crashCount,
+          idleCount,
+          totalEvents,
+          score: Math.max(0, Math.min(100, 100 - penalty)),
+        };
+      })
+      .sort((a, b) => a.score - b.score);
   }, [drivers, events]);
 
   return (
     <div>
       <PageHeader
         title="Driver Behaviour"
-        description="Safety scores from overspeeding and idling events over the last 30 days"
+        description="Safety scores from harsh driving, overspeeding, idling and crash events over the last 30 days"
       />
 
       {loading ? (
@@ -100,7 +150,7 @@ export default function DriverBehaviourPage() {
         <EmptyState
           icon={Users}
           title="No driver data yet"
-          description="Assign drivers to vehicles to start tracking behaviour scores based on overspeeding and idling events."
+          description="Assign drivers to vehicles to start tracking behaviour scores based on telemetry events."
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card/40">
@@ -108,9 +158,12 @@ export default function DriverBehaviourPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Driver</TableHead>
-                <TableHead className="hidden md:table-cell">Overspeed events</TableHead>
-                <TableHead className="hidden md:table-cell">Idle events</TableHead>
-                <TableHead className="hidden lg:table-cell">Total events</TableHead>
+                <TableHead className="hidden md:table-cell">Overspeed</TableHead>
+                <TableHead className="hidden lg:table-cell">Harsh accel</TableHead>
+                <TableHead className="hidden lg:table-cell">Harsh brake</TableHead>
+                <TableHead className="hidden lg:table-cell">Harsh corner</TableHead>
+                <TableHead className="hidden md:table-cell">Crashes</TableHead>
+                <TableHead className="hidden xl:table-cell">Total events</TableHead>
                 <TableHead>Safety score</TableHead>
               </TableRow>
             </TableHeader>
@@ -128,11 +181,27 @@ export default function DriverBehaviourPage() {
                   <TableCell className="hidden md:table-cell">
                     <span className="text-sm text-muted-foreground">{s.overspeedCount}</span>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className="text-sm text-muted-foreground">{s.idleCount}</span>
+                  <TableCell className="hidden lg:table-cell">
+                    <span className="text-sm text-muted-foreground">{s.harshAccelCount}</span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <span className="text-sm text-muted-foreground">{s.harshEventCount}</span>
+                    <span className="text-sm text-muted-foreground">{s.harshBrakeCount}</span>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <span className="text-sm text-muted-foreground">{s.harshCornerCount}</span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {s.crashCount > 0 ? (
+                      <span className="flex items-center gap-1 text-sm font-medium text-rose-400">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {s.crashCount}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    <span className="text-sm text-muted-foreground">{s.totalEvents}</span>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn("font-medium", scoreBadgeStyle(s.score))}>

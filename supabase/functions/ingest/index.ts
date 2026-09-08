@@ -22,6 +22,15 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseBoolLike(v: unknown): boolean | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).toLowerCase().trim();
+  if (!s) return null;
+  if (["1", "true", "on", "yes"].includes(s)) return true;
+  if (["0", "false", "off", "no", ""].includes(s)) return false;
+  return null;
+}
+
 function parseCoordValue(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -56,6 +65,16 @@ function normalizeTimestamp(v: unknown): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function parsePayload(url: URL, body: Record<string, unknown> | null) {
   const p = (k: string) => url.searchParams.get(k) ?? body?.[k];
 
@@ -84,14 +103,11 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
   const ignitionRaw =
     p("ignition") ?? p("ign") ?? p("din1") ?? p("ign_state") ?? p("on_ignition") ?? p("engine");
 
-  let ignition: boolean | null = null;
-  if (ignitionRaw !== null && ignitionRaw !== undefined) {
-    const s = String(ignitionRaw).toLowerCase().trim();
-    if (["1", "true", "on", "yes"].includes(s)) ignition = true;
-    else if (["0", "false", "off", "no"].includes(s)) ignition = false;
-  }
+  const ignition = parseBoolLike(ignitionRaw);
 
   const recorded_at = normalizeTimestamp(p("timestamp") ?? p("time") ?? p("gps_time") ?? p("utc_time"));
+
+  const ibuttonRaw = p("ibutton") ?? p("ibutton_id") ?? p("driver_key") ?? p("rfid");
 
   return {
     ident: ident ? String(ident).trim() : null,
@@ -104,6 +120,22 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     battery: batteryRaw !== null && batteryRaw !== undefined ? toNumber(batteryRaw) : null,
     ignition,
     recorded_at,
+    // Accelerometer-driven behaviour & safety events (Teltonika FMB920 built-in detection)
+    harshAccel: parseBoolLike(p("harsh_accel") ?? p("harshaccel")),
+    harshBrake: parseBoolLike(p("harsh_brake") ?? p("harshbrake")),
+    harshCorner: parseBoolLike(p("harsh_corner") ?? p("harshcorner")),
+    crash: parseBoolLike(p("crash") ?? p("crash_event")),
+    gforce: toNumber(p("gforce") ?? p("g_force")),
+    towing: parseBoolLike(p("towing")),
+    jamming: parseBoolLike(p("jamming") ?? p("gsm_jamming")),
+    // 1-Wire iButton driver identification
+    ibutton: ibuttonRaw ? String(ibuttonRaw).trim() : null,
+    // 1-Wire / BLE sensors
+    temperature: toNumber(p("temperature") ?? p("temp")),
+    humidity: toNumber(p("humidity")),
+    // Odometer & engine hours (explicit from device, or derived below)
+    odometerKm: toNumber(p("odometer_km") ?? p("odometer") ?? p("total_odometer")),
+    engineHours: toNumber(p("engine_hours") ?? p("enginehours")),
   };
 }
 
@@ -160,14 +192,25 @@ serve(async (req) => {
     .is("unassigned_at", null)
     .maybeSingle();
 
+  const vehicleId: string | null = assignment?.vehicle_id ?? null;
+  const orgId: string = device.organization_id;
+
+  // Fetch the previous snapshot before we overwrite it, so we can derive
+  // distance travelled and elapsed time for odometer / engine-hour tracking.
+  const { data: previousPosition } = await supabase
+    .from("latest_positions")
+    .select("latitude, longitude, recorded_at, ignition")
+    .eq("device_id", device.id)
+    .maybeSingle();
+
   const now = new Date();
   const recordedAt = data.recorded_at ? new Date(data.recorded_at) : now;
   if (isNaN(recordedAt.getTime())) recordedAt.setTime(now.getTime());
 
   const position = {
     device_id: device.id,
-    organization_id: device.organization_id,
-    vehicle_id: assignment?.vehicle_id ?? null,
+    organization_id: orgId,
+    vehicle_id: vehicleId,
     recorded_at: recordedAt.toISOString(),
     latitude: data.latitude,
     longitude: data.longitude,
@@ -197,9 +240,292 @@ serve(async (req) => {
     })
     .eq("id", device.id);
 
+  const events: Array<{
+    type: string;
+    severity: "info" | "warning" | "critical";
+    message: string;
+    metadata?: Record<string, unknown>;
+  }> = [];
+
+  if (data.harshAccel) events.push({ type: "HARSH_ACCEL", severity: "warning", message: "Harsh acceleration detected" });
+  if (data.harshBrake) events.push({ type: "HARSH_BRAKE", severity: "warning", message: "Harsh braking detected" });
+  if (data.harshCorner) events.push({ type: "HARSH_CORNER", severity: "warning", message: "Harsh cornering detected" });
+  if (data.towing) events.push({ type: "TOWING", severity: "critical", message: "Vehicle moved while ignition is off — possible towing" });
+  if (data.jamming) events.push({ type: "JAMMING", severity: "critical", message: "GSM signal jamming detected" });
+  if (data.crash) {
+    events.push({
+      type: "CRASH",
+      severity: "critical",
+      message: data.gforce ? `Crash detected (${data.gforce.toFixed(1)}G)` : "Crash detected",
+      metadata: { gforce: data.gforce },
+    });
+  }
+
+  // Overspeed check against the org's configured speed limit rule
+  if (data.speed_kmh !== null) {
+    const { data: speedRule } = await supabase
+      .from("alert_rules")
+      .select("speed_limit")
+      .eq("organization_id", orgId)
+      .eq("type", "OVERSPEED")
+      .eq("enabled", true)
+      .not("speed_limit", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (speedRule?.speed_limit && data.speed_kmh > speedRule.speed_limit) {
+      events.push({
+        type: "OVERSPEED",
+        severity: "warning",
+        message: `Speed ${data.speed_kmh} km/h exceeds limit of ${speedRule.speed_limit} km/h`,
+        metadata: { limit: speedRule.speed_limit },
+      });
+    }
+  }
+
+  if (events.length > 0) {
+    const { error: eventsError } = await supabase.from("device_events").insert(
+      events.map((e) => ({
+        organization_id: orgId,
+        device_id: device.id,
+        vehicle_id: vehicleId,
+        type: e.type,
+        severity: e.severity,
+        message: e.message,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        speed: data.speed_kmh,
+        metadata: e.metadata ?? {},
+      })),
+    );
+    if (eventsError) console.error("[ingest] failed to insert device events", eventsError);
+  }
+
+  // Odometer & engine-hour tracking, feeding telemetry-driven maintenance triggers
+  if (vehicleId) {
+    const { data: vehicle } = await supabase
+      .from("vehicles")
+      .select("odometer, engine_hours")
+      .eq("id", vehicleId)
+      .maybeSingle();
+
+    if (vehicle) {
+      let newOdometer = vehicle.odometer ?? 0;
+      let newEngineHours = vehicle.engine_hours ?? 0;
+
+      if (data.odometerKm !== null) {
+        newOdometer = data.odometerKm;
+      } else if (previousPosition) {
+        const deltaKm = haversineKm(
+          previousPosition.latitude,
+          previousPosition.longitude,
+          data.latitude,
+          data.longitude,
+        );
+        // Ignore implausible GPS jumps (e.g. cold-start fix drift) between pings.
+        if (deltaKm > 0 && deltaKm < 5) newOdometer = Number((newOdometer + deltaKm).toFixed(2));
+      }
+
+      if (data.engineHours !== null) {
+        newEngineHours = data.engineHours;
+      } else if (previousPosition?.recorded_at && data.ignition) {
+        const elapsedHours =
+          (recordedAt.getTime() - new Date(previousPosition.recorded_at).getTime()) / 3_600_000;
+        if (elapsedHours > 0 && elapsedHours < 1) {
+          newEngineHours = Number((newEngineHours + elapsedHours).toFixed(2));
+        }
+      }
+
+      if (newOdometer !== vehicle.odometer || newEngineHours !== vehicle.engine_hours) {
+        await supabase
+          .from("vehicles")
+          .update({ odometer: newOdometer, engine_hours: newEngineHours })
+          .eq("id", vehicleId);
+      }
+
+      try {
+        await checkMaintenanceTriggers(supabase, orgId, vehicleId, newOdometer, newEngineHours);
+      } catch (err) {
+        console.error("[ingest] maintenance trigger check failed", err);
+      }
+    }
+
+    // iButton driver identification: reassign the active driver on this vehicle
+    if (data.ibutton) {
+      try {
+        await identifyDriver(supabase, orgId, device.id, vehicleId, data.ibutton, data.latitude, data.longitude);
+      } catch (err) {
+        console.error("[ingest] driver identification failed", err);
+      }
+    }
+  }
+
+  // Temperature / humidity sensor readings (1-Wire probe or BLE beacon)
+  if (data.temperature !== null || data.humidity !== null) {
+    try {
+      await recordSensorReadings(supabase, orgId, device.id, {
+        TEMPERATURE: data.temperature,
+        HUMIDITY: data.humidity,
+      });
+    } catch (err) {
+      console.error("[ingest] sensor reading capture failed", err);
+    }
+  }
+
   return corsResponse({
     ok: true,
     device_id: device.id,
     recorded_at: position.recorded_at,
   });
 });
+
+async function checkMaintenanceTriggers(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  orgId: string,
+  vehicleId: string,
+  odometer: number,
+  engineHours: number,
+) {
+  const { data: intervals } = await supabase
+    .from("maintenance_intervals")
+    .select("id, service_type, interval_km, interval_days, vehicle_id")
+    .eq("organization_id", orgId)
+    .eq("is_active", true)
+    .or(`vehicle_id.eq.${vehicleId},vehicle_id.is.null`);
+
+  if (!intervals || intervals.length === 0) return;
+
+  for (const interval of intervals) {
+    // An open (scheduled/overdue) auto-generated entry for this service type already covers the next service.
+    const { data: openSchedule } = await supabase
+      .from("maintenance_schedules")
+      .select("id")
+      .eq("vehicle_id", vehicleId)
+      .eq("service_type", interval.service_type)
+      .eq("status", "SCHEDULED")
+      .limit(1)
+      .maybeSingle();
+    if (openSchedule) continue;
+
+    const { data: lastCompleted } = await supabase
+      .from("maintenance_schedules")
+      .select("due_odometer, completed_at")
+      .eq("vehicle_id", vehicleId)
+      .eq("service_type", interval.service_type)
+      .eq("status", "COMPLETED")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let dueNow = false;
+    let dueOdometer: number | null = null;
+    let dueDate: string | null = null;
+
+    if (interval.interval_km) {
+      const baseline = lastCompleted?.due_odometer ?? 0;
+      dueOdometer = Number((baseline + interval.interval_km).toFixed(2));
+      if (odometer >= dueOdometer) dueNow = true;
+    }
+
+    if (interval.interval_days) {
+      const baseline = lastCompleted?.completed_at ? new Date(lastCompleted.completed_at) : null;
+      if (baseline) {
+        const due = new Date(baseline.getTime() + interval.interval_days * 86_400_000);
+        dueDate = due.toISOString().slice(0, 10);
+        if (Date.now() >= due.getTime()) dueNow = true;
+      }
+    }
+
+    if (dueNow) {
+      await supabase.from("maintenance_schedules").insert({
+        organization_id: orgId,
+        vehicle_id: vehicleId,
+        service_type: interval.service_type,
+        due_date: dueDate,
+        due_odometer: dueOdometer,
+        status: "SCHEDULED",
+        auto_generated: true,
+        notes: `Auto-generated from telemetry (odometer ${odometer} km, engine hours ${engineHours}).`,
+      });
+    }
+  }
+}
+
+async function identifyDriver(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  orgId: string,
+  deviceId: string,
+  vehicleId: string,
+  ibutton: string,
+  latitude: number,
+  longitude: number,
+) {
+  const { data: driver } = await supabase
+    .from("drivers")
+    .select("id, name, vehicle_id")
+    .eq("organization_id", orgId)
+    .eq("ibutton_id", ibutton)
+    .maybeSingle();
+
+  if (!driver || driver.vehicle_id === vehicleId) return;
+
+  // Free up the vehicle from whoever was previously assigned to it.
+  await supabase.from("drivers").update({ vehicle_id: null }).eq("vehicle_id", vehicleId);
+  await supabase.from("drivers").update({ vehicle_id: vehicleId }).eq("id", driver.id);
+
+  await supabase
+    .from("trips")
+    .update({ driver_id: driver.id })
+    .eq("vehicle_id", vehicleId)
+    .eq("status", "IN_PROGRESS")
+    .is("end_time", null);
+
+  await supabase.from("device_events").insert({
+    organization_id: orgId,
+    device_id: deviceId,
+    vehicle_id: vehicleId,
+    type: "DRIVER_IDENTIFIED",
+    severity: "info",
+    message: `${driver.name} identified via iButton`,
+    latitude,
+    longitude,
+    metadata: { driver_id: driver.id },
+  });
+}
+
+async function recordSensorReadings(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  orgId: string,
+  deviceId: string,
+  readings: Record<string, number | null>,
+) {
+  for (const [sensorType, value] of Object.entries(readings)) {
+    if (value === null) continue;
+
+    const { data: sensors } = await supabase
+      .from("asset_sensors")
+      .select("id")
+      .eq("device_id", deviceId)
+      .eq("sensor_type", sensorType)
+      .eq("is_active", true);
+
+    if (!sensors || sensors.length === 0) continue;
+
+    const now = new Date().toISOString();
+    for (const sensor of sensors) {
+      await supabase.from("sensor_readings").insert({
+        organization_id: orgId,
+        sensor_id: sensor.id,
+        value,
+        recorded_at: now,
+      });
+      await supabase
+        .from("asset_sensors")
+        .update({ last_value: value, last_reading_at: now })
+        .eq("id", sensor.id);
+    }
+  }
+}

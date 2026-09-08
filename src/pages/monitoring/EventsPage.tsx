@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Activity,
   AlertOctagon,
+  AlertTriangle,
   Gauge,
   LogIn,
   LogOut,
@@ -11,6 +12,10 @@ import {
   Play,
   Power,
   PowerOff,
+  Radio,
+  Truck,
+  User,
+  Zap,
 } from "lucide-react";
 import {
   Select,
@@ -45,6 +50,13 @@ const EVENT_ICONS: Record<DeviceEventType, typeof Activity> = {
   GEOFENCE_EXIT: LogOut,
   DEVICE_ONLINE: Activity,
   DEVICE_OFFLINE: AlertOctagon,
+  HARSH_ACCEL: Zap,
+  HARSH_BRAKE: Zap,
+  HARSH_CORNER: Zap,
+  CRASH: AlertTriangle,
+  TOWING: Truck,
+  JAMMING: Radio,
+  DRIVER_IDENTIFIED: User,
 };
 
 const EVENT_LABELS: Record<DeviceEventType, string> = {
@@ -58,6 +70,13 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   GEOFENCE_EXIT: "Exited geofence",
   DEVICE_ONLINE: "Device online",
   DEVICE_OFFLINE: "Device offline",
+  HARSH_ACCEL: "Harsh acceleration",
+  HARSH_BRAKE: "Harsh braking",
+  HARSH_CORNER: "Harsh cornering",
+  CRASH: "Crash detected",
+  TOWING: "Possible towing",
+  JAMMING: "GSM jamming",
+  DRIVER_IDENTIFIED: "Driver identified",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {

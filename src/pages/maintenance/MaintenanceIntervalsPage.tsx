@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { format, isPast } from "date-fns";
-import { MoreHorizontal, Pencil, Plus, Trash2, Wrench } from "lucide-react";
+import { CalendarClock, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,13 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -37,39 +29,24 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { MaintenanceFormDialog } from "@/components/maintenance/maintenance-form-dialog";
+import { IntervalFormDialog } from "@/components/maintenance/interval-form-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { MAINTENANCE_DELETE_ROLES, MAINTENANCE_WRITE_ROLES, hasAnyRole } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { showError, showSuccess } from "@/utils/toast";
 import { cn } from "@/lib/utils";
-import type { MaintenanceSchedule, MaintenanceStatus } from "@/types/database";
+import type { MaintenanceInterval } from "@/types/database";
 
-const STATUS_STYLES: Record<MaintenanceStatus, string> = {
-  SCHEDULED: "border-sky-500/25 bg-sky-500/10 text-sky-400",
-  COMPLETED: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
-  OVERDUE: "border-rose-500/25 bg-rose-500/10 text-rose-400",
-  CANCELLED: "border-slate-500/25 bg-slate-500/10 text-slate-400",
-};
-
-const STATUS_LABELS: Record<MaintenanceStatus, string> = {
-  SCHEDULED: "Scheduled",
-  COMPLETED: "Completed",
-  OVERDUE: "Overdue",
-  CANCELLED: "Cancelled",
-};
-
-export default function MaintenancePage() {
+export default function MaintenanceIntervalsPage() {
   const { currentOrg, currentRole, user } = useAuth();
 
-  const [records, setRecords] = useState<MaintenanceSchedule[]>([]);
+  const [intervals, setIntervals] = useState<MaintenanceInterval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<MaintenanceSchedule | null>(null);
-  const [deleting, setDeleting] = useState<MaintenanceSchedule | null>(null);
+  const [editing, setEditing] = useState<MaintenanceInterval | null>(null);
+  const [deleting, setDeleting] = useState<MaintenanceInterval | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const canWrite = hasAnyRole(currentRole, MAINTENANCE_WRITE_ROLES);
@@ -78,31 +55,19 @@ export default function MaintenancePage() {
   const load = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
-    let query = supabase
-      .from("maintenance_schedules")
+    const { data, error } = await supabase
+      .from("maintenance_intervals")
       .select("*, vehicle:vehicles(name, registration_number)")
       .eq("organization_id", currentOrg.id)
-      .order("due_date", { ascending: true, nullsFirst: false });
+      .order("created_at", { ascending: false });
 
-    if (statusFilter !== "all") query = query.eq("status", statusFilter);
-
-    const { data, error } = await query;
     setLoading(false);
     if (error) {
       showError(error.message);
       return;
     }
-
-    const rows = (data ?? []) as unknown as MaintenanceSchedule[];
-    // Surface stale "scheduled" items whose due date has passed as overdue in the UI.
-    setRecords(
-      rows.map((r) =>
-        r.status === "SCHEDULED" && r.due_date && isPast(new Date(r.due_date))
-          ? { ...r, status: "OVERDUE" as MaintenanceStatus }
-          : r,
-      ),
-    );
-  }, [currentOrg, statusFilter]);
+    setIntervals((data ?? []) as unknown as MaintenanceInterval[]);
+  }, [currentOrg]);
 
   useEffect(() => {
     load();
@@ -111,7 +76,7 @@ export default function MaintenancePage() {
   const handleDelete = async () => {
     if (!deleting || !currentOrg) return;
     setDeleteBusy(true);
-    const { error } = await supabase.from("maintenance_schedules").delete().eq("id", deleting.id);
+    const { error } = await supabase.from("maintenance_intervals").delete().eq("id", deleting.id);
     setDeleteBusy(false);
     if (error) {
       showError(error.message);
@@ -121,11 +86,11 @@ export default function MaintenancePage() {
       organizationId: currentOrg.id,
       userId: user?.id ?? null,
       action: "DELETE",
-      entity: "maintenance_schedule",
+      entity: "maintenance_interval",
       entityId: deleting.id,
       oldData: deleting,
     });
-    showSuccess("Maintenance record deleted");
+    showSuccess("Interval removed");
     setDeleting(null);
     load();
   };
@@ -133,8 +98,8 @@ export default function MaintenancePage() {
   return (
     <div>
       <PageHeader
-        title="Maintenance"
-        description={`${records.length} service record${records.length === 1 ? "" : "s"}`}
+        title="Maintenance Intervals"
+        description="Auto-generate service schedules from real odometer and time telemetry"
         actions={
           canWrite ? (
             <Button
@@ -145,38 +110,23 @@ export default function MaintenancePage() {
               }}
             >
               <Plus className="mr-2 h-4 w-4" />
-              Schedule maintenance
+              Add interval
             </Button>
           ) : undefined
         }
       />
 
-      <div className="mb-4">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full bg-card/60 sm:w-[190px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-            <SelectItem value="COMPLETED">Completed</SelectItem>
-            <SelectItem value="OVERDUE">Overdue</SelectItem>
-            <SelectItem value="CANCELLED">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-14 rounded-lg" />
           ))}
         </div>
-      ) : records.length === 0 ? (
+      ) : intervals.length === 0 ? (
         <EmptyState
-          icon={Wrench}
-          title={statusFilter !== "all" ? "No records match this filter" : "No maintenance scheduled"}
-          description="Plan service schedules to keep your fleet running reliably."
+          icon={CalendarClock}
+          title="No intervals configured"
+          description="Add a service interval (e.g. oil change every 3,000 km) to auto-generate maintenance schedules as your vehicles report real telemetry."
           action={
             canWrite ? (
               <Button
@@ -188,7 +138,7 @@ export default function MaintenancePage() {
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Schedule maintenance
+                Add interval
               </Button>
             ) : undefined
           }
@@ -198,52 +148,42 @@ export default function MaintenancePage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Vehicle</TableHead>
-                <TableHead className="hidden md:table-cell">Service</TableHead>
-                <TableHead className="hidden lg:table-cell">Due</TableHead>
-                <TableHead className="hidden lg:table-cell">Cost</TableHead>
+                <TableHead>Service type</TableHead>
+                <TableHead className="hidden md:table-cell">Applies to</TableHead>
+                <TableHead className="hidden lg:table-cell">Interval</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((r) => (
-                <TableRow key={r.id}>
+              {intervals.map((i) => (
+                <TableRow key={i.id}>
                   <TableCell>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{r.vehicle?.name ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.vehicle?.registration_number ?? ""}
-                      </p>
-                    </div>
+                    <p className="text-sm font-medium">{i.service_type}</p>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">{r.service_type}</span>
-                      {r.auto_generated && (
-                        <Badge
-                          variant="outline"
-                          className="border-sky-500/25 bg-sky-500/10 text-[10px] font-medium text-sky-400"
-                        >
-                          Auto
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
                     <span className="text-sm text-muted-foreground">
-                      {r.due_date ? format(new Date(r.due_date), "dd MMM yyyy") : "—"}
-                      {r.due_odometer ? ` · ${r.due_odometer} km` : ""}
+                      {i.vehicle ? `${i.vehicle.name} · ${i.vehicle.registration_number}` : "All vehicles"}
                     </span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <span className="text-sm text-muted-foreground">
-                      {r.cost != null ? `$${r.cost.toLocaleString()}` : "—"}
+                      {[i.interval_km ? `${i.interval_km} km` : null, i.interval_days ? `${i.interval_days} days` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[r.status])}>
-                      {STATUS_LABELS[r.status]}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "font-medium",
+                        i.is_active
+                          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
+                          : "border-slate-500/25 bg-slate-500/10 text-slate-400",
+                      )}
+                    >
+                      {i.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -258,7 +198,7 @@ export default function MaintenancePage() {
                           {canWrite && (
                             <DropdownMenuItem
                               onClick={() => {
-                                setEditing(r);
+                                setEditing(i);
                                 setFormOpen(true);
                               }}
                             >
@@ -269,7 +209,7 @@ export default function MaintenancePage() {
                           {canDelete && (
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleting(r)}
+                              onClick={() => setDeleting(i)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
@@ -286,10 +226,10 @@ export default function MaintenancePage() {
         </div>
       )}
 
-      <MaintenanceFormDialog
+      <IntervalFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        record={editing}
+        interval={editing}
         onSaved={() => {
           setFormOpen(false);
           load();
@@ -299,10 +239,10 @@ export default function MaintenancePage() {
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogTitle>Remove this interval?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the maintenance record. This action is logged and cannot be
-              undone.
+              Vehicles will no longer auto-generate "{deleting?.service_type}" service schedules
+              from telemetry. This action is logged and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

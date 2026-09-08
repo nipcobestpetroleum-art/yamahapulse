@@ -79,6 +79,7 @@ export interface Vehicle {
   fuel_type: string | null;
   fuel_capacity: number | null;
   odometer: number;
+  engine_hours: number;
   status: VehicleStatus;
   image_url: string | null;
   notes: string | null;
@@ -137,6 +138,7 @@ export interface Driver {
   phone: string | null;
   email: string | null;
   license_number: string | null;
+  ibutton_id: string | null;
   vehicle_id: string | null;
   status: DriverStatus;
   notes: string | null;
@@ -178,6 +180,20 @@ export interface MaintenanceSchedule {
   completed_at: string | null;
   cost: number | null;
   notes: string | null;
+  auto_generated: boolean;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export interface MaintenanceInterval {
+  id: string;
+  organization_id: string;
+  vehicle_id: string | null;
+  service_type: string;
+  interval_km: number | null;
+  interval_days: number | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   vehicle?: { name: string; registration_number: string } | null;
@@ -456,10 +472,21 @@ export interface AssetSensor {
   sensor_type: AssetSensorType;
   unit: string | null;
   is_active: boolean;
+  last_value: number | null;
+  last_reading_at: string | null;
   created_at: string;
   updated_at: string;
   vehicle?: { name: string } | null;
   device?: { name: string } | null;
+}
+
+export interface SensorReading {
+  id: string;
+  organization_id: string;
+  sensor_id: string;
+  value: number;
+  recorded_at: string;
+  created_at: string;
 }
 
 export interface InventoryItem {
@@ -487,7 +514,14 @@ export type DeviceEventType =
   | "GEOFENCE_ENTER"
   | "GEOFENCE_EXIT"
   | "DEVICE_ONLINE"
-  | "DEVICE_OFFLINE";
+  | "DEVICE_OFFLINE"
+  | "HARSH_ACCEL"
+  | "HARSH_BRAKE"
+  | "HARSH_CORNER"
+  | "CRASH"
+  | "TOWING"
+  | "JAMMING"
+  | "DRIVER_IDENTIFIED";
 
 export interface DeviceEvent {
   id: string;
@@ -499,5 +533,7 @@ export interface DeviceEvent {
   message: string | null;
   latitude: number | null;
   longitude: number | null;
+  speed: number | null;
+  metadata: Record<string, unknown>;
   created_at: string;
 }

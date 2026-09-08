@@ -48,6 +48,7 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
+  const [ibuttonId, setIbuttonId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [status, setStatus] = useState<DriverStatus>("ACTIVE");
   const [notes, setNotes] = useState("");
@@ -65,6 +66,7 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
     setPhone(driver?.phone ?? "");
     setEmail(driver?.email ?? "");
     setLicenseNumber(driver?.license_number ?? "");
+    setIbuttonId(driver?.ibutton_id ?? "");
     setVehicleId(driver?.vehicle_id ?? "");
     setStatus(driver?.status ?? "ACTIVE");
     setNotes(driver?.notes ?? "");
@@ -80,6 +82,7 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
       phone: phone.trim() || null,
       email: email.trim() || null,
       license_number: licenseNumber.trim() || null,
+      ibutton_id: ibuttonId.trim() || null,
       vehicle_id: vehicleId || null,
       status,
       notes: notes.trim() || null,
@@ -94,7 +97,9 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
     if (res.error) {
       showError(
         res.error.code === "23505"
-          ? "That vehicle already has a driver assigned."
+          ? res.error.message.includes("ibutton")
+            ? "That iButton ID is already assigned to another driver."
+            : "That vehicle already has a driver assigned."
           : res.error.message,
       );
       return;
@@ -162,6 +167,15 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
                 placeholder="Optional"
                 value={licenseNumber}
                 onChange={(e) => setLicenseNumber(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dr-ibutton">iButton ID</Label>
+              <Input
+                id="dr-ibutton"
+                placeholder="Scan tag or enter ID"
+                value={ibuttonId}
+                onChange={(e) => setIbuttonId(e.target.value)}
               />
             </div>
             <div className="space-y-2">

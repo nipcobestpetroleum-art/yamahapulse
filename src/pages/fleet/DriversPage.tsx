@@ -232,6 +232,7 @@ export default function DriversPage() {
                   <TableHead>Driver</TableHead>
                   <TableHead className="hidden md:table-cell">Contact</TableHead>
                   <TableHead className="hidden lg:table-cell">License</TableHead>
+                  <TableHead className="hidden xl:table-cell">iButton</TableHead>
                   <TableHead className="hidden md:table-cell">Vehicle</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="hidden xl:table-cell">Added</TableHead>
@@ -257,6 +258,11 @@ export default function DriversPage() {
                     <TableCell className="hidden lg:table-cell">
                       <span className="font-mono text-xs text-muted-foreground">
                         {d.license_number ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {d.ibutton_id ?? "—"}
                       </span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
