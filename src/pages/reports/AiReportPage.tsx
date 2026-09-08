@@ -2,15 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Activity,
+  AlertTriangle,
   BatteryCharging,
   BrainCircuit,
+  CheckCircle2,
   Compass,
+  Car,
+  CircleDot,
   Gauge,
   MapPin,
+  MoveRight,
+  Power,
+  PowerOff,
   RefreshCw,
   Satellite,
   Signal,
+  Smartphone,
+  Siren,
   Timer,
+  Wifi,
   Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -32,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,13 +58,6 @@ const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 const GSM_BARS = ["No signal", "Very poor", "Poor", "Fair", "Good", "Excellent"];
 
-const GNSS_STATUS: Record<number, string> = {
-  0: "Off — no fix",
-  1: "No fix",
-  2: "2D fix",
-  3: "3D fix",
-};
-
 const SLEEP_MODES: Record<number, string> = {
   0: "Awake",
   1: "Deep sleep",
@@ -62,38 +65,31 @@ const SLEEP_MODES: Record<number, string> = {
   3: "Online sleep",
 };
 
-const REPORTED_EVENT_TYPES = [
-  "OVERSPEED",
-  "HARSH_BRAKE",
-  "HARSH_ACCEL",
-  "HARSH_CORNER",
-  "IGNITION_ON",
-  "IGNITION_OFF",
-  "MOVING",
-  "STOPPED",
-  "GEOFENCE_ENTER",
-  "GEOFENCE_EXIT",
-  "POWER_CUT",
-  "POWER_RESTORED",
-  "GPS_LOST",
-  "GPS_RESTORED",
-];
-
-const EVENT_SHORT: Record<string, string> = {
-  OVERSPEED: "Overspeed",
-  HARSH_BRAKE: "Harsh braking",
-  HARSH_ACCEL: "Harsh accel",
-  HARSH_CORNER: "Harsh corner",
-  IGNITION_ON: "Ignition ON",
-  IGNITION_OFF: "Ignition OFF",
-  MOVING: "Move start",
-  STOPPED: "Move stop",
-  GEOFENCE_ENTER: "Geofence in",
-  GEOFENCE_EXIT: "Geofence out",
-  POWER_CUT: "Power lost",
-  POWER_RESTORED: "Power restored",
-  GPS_LOST: "GPS lost",
-  GPS_RESTORED: "GPS restored",
+const EVENT_META: Record<string, { label: string; icon: React.ElementType; tone: string }> = {
+  IGNITION_ON: { label: "Ignition turned on", icon: Power, tone: "text-emerald-400" },
+  IGNITION_OFF: { label: "Ignition turned off", icon: PowerOff, tone: "text-muted-foreground" },
+  MOVING: { label: "Started moving", icon: MoveRight, tone: "text-sky-400" },
+  STOPPED: { label: "Stopped moving", icon: CircleDot, tone: "text-muted-foreground" },
+  OVERSPEED: { label: "Speed limit exceeded", icon: Gauge, tone: "text-amber-400" },
+  HARSH_ACCEL: { label: "Harsh acceleration", icon: Zap, tone: "text-amber-400" },
+  HARSH_BRAKE: { label: "Harsh braking", icon: Zap, tone: "text-amber-400" },
+  HARSH_CORNER: { label: "Harsh cornering", icon: Zap, tone: "text-amber-400" },
+  CRASH: { label: "Crash detected", icon: AlertTriangle, tone: "text-rose-400" },
+  PANIC: { label: "Panic button pressed", icon: Siren, tone: "text-rose-400" },
+  TOWING: { label: "Possible towing", icon: AlertTriangle, tone: "text-rose-400" },
+  JAMMING: { label: "Signal jamming", icon: Wifi, tone: "text-rose-400" },
+  ALARM: { label: "Alarm triggered", icon: Siren, tone: "text-rose-400" },
+  POWER_CUT: { label: "External power lost", icon: PowerOff, tone: "text-rose-400" },
+  POWER_RESTORED: { label: "External power restored", icon: Power, tone: "text-emerald-400" },
+  GPS_LOST: { label: "GPS fix lost", icon: Satellite, tone: "text-amber-400" },
+  GPS_RESTORED: { label: "GPS fix restored", icon: Satellite, tone: "text-emerald-400" },
+  GEOFENCE_ENTER: { label: "Entered geofence", icon: MapPin, tone: "text-sky-400" },
+  GEOFENCE_EXIT: { label: "Exited geofence", icon: MapPin, tone: "text-sky-400" },
+  IDLE: { label: "Excessive idling", icon: Timer, tone: "text-amber-400" },
+  LOW_BATTERY: { label: "Low device battery", icon: BatteryCharging, tone: "text-amber-400" },
+  DOOR_OPEN: { label: "Door opened", icon: CircleDot, tone: "text-muted-foreground" },
+  DOOR_CLOSE: { label: "Door closed", icon: CircleDot, tone: "text-muted-foreground" },
+  DRIVER_IDENTIFIED: { label: "Driver identified", icon: Smartphone, tone: "text-sky-400" },
 };
 
 interface DeviceRow {
@@ -122,9 +118,8 @@ interface ReportData {
   lastIgnitionOff: DeviceEvent | null;
 }
 
-function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return format(new Date(iso), "dd MMM yyyy, HH:mm:ss");
+function fmtCoords(p: Pick<Position, "latitude" | "longitude">, precision = 5): string {
+  return `${p.latitude.toFixed(precision)}, ${p.longitude.toFixed(precision)}`;
 }
 
 function headingLabel(course: number | null | undefined): string {
@@ -133,63 +128,37 @@ function headingLabel(course: number | null | undefined): string {
 }
 
 function dopQuality(dop: number | null | undefined) {
-  if (dop === null || dop === undefined) return { label: "—", cls: "text-muted-foreground" };
+  if (dop === null || dop === undefined) return null;
   if (dop <= 1) return { label: "Excellent", cls: "text-emerald-400" };
   if (dop <= 2) return { label: "Good", cls: "text-emerald-400" };
   if (dop <= 5) return { label: "Moderate", cls: "text-amber-400" };
   return { label: "Poor", cls: "text-rose-400" };
 }
 
-function boolLabel(v: boolean | null | undefined): string {
-  if (v === null || v === undefined) return "Unknown";
-  return v ? "On" : "Off";
-}
-
-function operatorLabel(op: number | null | undefined): string {
-  if (op === null || op === undefined) return "—";
+function operatorLabel(op: number | null | undefined): string | null {
+  if (op === null || op === undefined) return null;
   const s = String(op).padStart(5, "0");
-  return `${s.slice(0, 3)}-${s.slice(3)} (MCC-MNC)`;
+  return `${s.slice(0, 3)}-${s.slice(3)}`;
 }
 
-function Field({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-1.5">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="cursor-default text-[13px] text-muted-foreground">{label}</span>
-        </TooltipTrigger>
-        {hint && (
-          <TooltipContent side="top" className="text-xs">
-            {hint}
-          </TooltipContent>
-        )}
-      </Tooltip>
-      <span className="text-right text-[13px] font-medium">{value}</span>
-    </div>
-  );
-}
-
-function SectionCard({
-  icon: Icon,
-  title,
-  children,
-  className,
+/** A row in the hero/health cards. Hidden gracefully when value is null. */
+function Field({
+  label,
+  value,
+  sub,
 }: {
-  icon: React.ElementType;
-  title: string;
-  children: React.ReactNode;
-  className?: string;
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
 }) {
   return (
-    <Card className={cn("border-border bg-card/60", className)}>
-      <CardHeader className="pb-1 pt-4">
-        <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Icon className="h-4 w-4 text-primary" />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="divide-y divide-border/40 px-4 pb-3">{children}</CardContent>
-    </Card>
+    <div className="flex items-start justify-between gap-4 py-1.5">
+      <span className="text-[13px] text-muted-foreground">{label}</span>
+      <span className="text-right">
+        <span className="text-[13px] font-medium">{value}</span>
+        {sub != null && <span className="block text-xs text-muted-foreground">{sub}</span>}
+      </span>
+    </div>
   );
 }
 
@@ -199,7 +168,6 @@ export default function AiReportPage() {
   const [deviceId, setDeviceId] = useState("");
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -222,7 +190,6 @@ export default function AiReportPage() {
   const load = useCallback(async () => {
     if (!currentOrg || !deviceId) return;
     setLoading(true);
-
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -247,8 +214,7 @@ export default function AiReportPage() {
         .maybeSingle(),
     ]);
 
-    const error =
-      deviceRes.error ?? latestRes.error ?? logRes.error ?? assignmentRes.error;
+    const error = deviceRes.error ?? latestRes.error ?? logRes.error ?? assignmentRes.error;
     if (error) {
       setLoading(false);
       showError(error.message);
@@ -256,7 +222,8 @@ export default function AiReportPage() {
     }
 
     const device = deviceRes.data as unknown as DeviceRow;
-    const vehicle = (assignmentRes.data as unknown as { vehicle: VehicleRow | null } | null)?.vehicle ?? null;
+    const vehicle =
+      (assignmentRes.data as unknown as { vehicle: VehicleRow | null } | null)?.vehicle ?? null;
 
     const [openTripRes, todayTripsRes, todayEventsRes, ignitionOffRes] = await Promise.all([
       vehicle
@@ -274,7 +241,7 @@ export default function AiReportPage() {
             .from("trips")
             .select("*")
             .eq("vehicle_id", vehicle.id)
-            .eq("status", "COMPLETED")
+            .in("status", ["COMPLETED", "IN_PROGRESS"])
             .gte("start_time", startOfDay.toISOString())
             .order("start_time", { ascending: false })
         : Promise.resolve({ data: [] }),
@@ -295,8 +262,6 @@ export default function AiReportPage() {
         .maybeSingle(),
     ]);
 
-    setLoading(false);
-
     setData({
       device,
       latest: (latestRes.data ?? null) as unknown as LatestPosition | null,
@@ -307,7 +272,7 @@ export default function AiReportPage() {
       todayEvents: (todayEventsRes.data ?? []) as unknown as DeviceEvent[],
       lastIgnitionOff: (ignitionOffRes.data ?? null) as unknown as DeviceEvent | null,
     });
-    setLastRefresh(new Date());
+    setLoading(false);
   }, [currentOrg, deviceId]);
 
   useEffect(() => {
@@ -316,101 +281,205 @@ export default function AiReportPage() {
     return () => clearInterval(interval);
   }, [load]);
 
+  const isOnline =
+    !!data?.device.last_seen_at &&
+    Date.now() - new Date(data.device.last_seen_at).getTime() < ONLINE_WINDOW_MS;
+
+  /* ---------- Derived analytics ---------- */
   const analytics = useMemo(() => {
     if (!data) return null;
     const now = Date.now();
 
     const open = data.openTrip;
-    const openStart = open ? new Date(open.start_time).getTime() : null;
     const runningDistance =
       open && open.start_odometer != null && data.vehicle?.odometer != null
         ? Math.max(0, data.vehicle.odometer - open.start_odometer)
         : open?.distance_km ?? 0;
-    const runningMinutes = openStart ? (now - openStart) / 60_000 : 0;
+    const runningMinutes = open ? (now - new Date(open.start_time).getTime()) / 60_000 : 0;
 
+    const completed = data.todayTrips.filter((t) => t.status === "COMPLETED");
     const todayDistance =
-      data.todayTrips.reduce((sum, t) => sum + (t.distance_km ?? 0), 0) + runningDistance;
+      completed.reduce((sum, t) => sum + (t.distance_km ?? 0), 0) + runningDistance;
     const todayMinutes =
-      data.todayTrips.reduce((sum, t) => sum + (tripDurationMinutes(t.start_time, t.end_time) ?? 0), 0) +
+      completed.reduce((sum, t) => sum + (tripDurationMinutes(t.start_time, t.end_time) ?? 0), 0) +
       runningMinutes;
 
     const idleSince = data.latest?.idle_since ? new Date(data.latest.idle_since).getTime() : null;
-    const idleMinutes = idleSince ? (now - idleSince) / 60_000 : null;
-
-    const stopSince =
+    const stopMinutes =
       data.latest?.ignition === false && data.lastIgnitionOff
         ? (now - new Date(data.lastIgnitionOff.created_at).getTime()) / 60_000
         : null;
+    const stationaryMinutes =
+      data.latest && (data.latest.speed ?? 0) <= 2
+        ? (now - new Date(data.latest.recorded_at).getTime()) / 60_000
+        : null;
+
+    const stopCount = data.todayEvents.filter((e) => e.type === "STOPPED").length;
 
     return {
       runningDistance,
       runningMinutes,
       todayDistance,
       todayMinutes,
-      idleMinutes,
-      stopMinutes: stopSince,
+      tripCount: data.todayTrips.length,
+      idleMinutes: idleSince ? (now - idleSince) / 60_000 : null,
+      stopMinutes,
+      stationaryMinutes,
+      stopCount,
     };
   }, [data]);
 
-  const eventCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const e of data?.todayEvents ?? []) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
-    return counts;
+  /* ---------- AI insight rules ---------- */
+  const insights = useMemo(() => {
+    if (!data?.latest || !analytics) return [];
+    const out: { tone: "ok" | "warn" | "alert" | "neutral"; text: string }[] = [];
+    const l = data.latest;
+
+    if (!isOnline) {
+      out.push({
+        tone: "alert",
+        text: `Tracker is offline — last contact ${formatDistanceToNow(new Date(data.device.last_seen_at!), { addSuffix: true })}. Data below may be stale.`,
+      });
+    } else {
+      out.push({ tone: "ok", text: "Tracker is communicating normally." });
+    }
+
+    if (l.ignition === false && analytics.stopMinutes != null) {
+      out.push({
+        tone: "neutral",
+        text: `Vehicle has been parked with ignition off for ${formatDuration(analytics.stopMinutes)}.`,
+      });
+    } else if (l.ignition === true && (l.speed ?? 0) <= 2) {
+      out.push({ tone: "neutral", text: "Engine is running but the vehicle is stationary." });
+    } else if ((l.speed ?? 0) > 2) {
+      out.push({
+        tone: "neutral",
+        text: `Vehicle is currently moving at ${Math.round(l.speed ?? 0)} km/h ${data.latest.course != null ? `heading ${headingLabel(l.course)}` : ""}.`,
+      });
+    }
+
+    if (l.satellites != null) {
+      out.push(
+        l.satellites >= 5
+          ? { tone: "ok", text: `GPS reception is strong (${l.satellites} satellites).` }
+          : { tone: "warn", text: `GPS reception is weak (${l.satellites} satellites).` },
+      );
+    }
+
+    const criticalToday = data.todayEvents.filter((e) =>
+      ["CRASH", "PANIC", "TOWING", "JAMMING", "ALARM", "POWER_CUT"].includes(e.type),
+    ).length;
+    const harshToday = data.todayEvents.filter((e) =>
+      ["HARSH_ACCEL", "HARSH_BRAKE", "HARSH_CORNER", "OVERSPEED"].includes(e.type),
+    ).length;
+
+    if (criticalToday > 0) {
+      out.push({
+        tone: "alert",
+        text: `${criticalToday} critical alert${criticalToday === 1 ? "" : "s"} recorded today — review the Events tab.`,
+      });
+    } else if (harshToday > 0) {
+      out.push({
+        tone: "warn",
+        text: `${harshToday} driving-behavior event${harshToday === 1 ? "" : "s"} today (speeding or harsh maneuvers).`,
+      });
+    } else {
+      out.push({ tone: "ok", text: "No aggressive driving or tampering detected today." });
+    }
+
+    return out;
+  }, [data, analytics, isOnline]);
+
+  /* ---------- Unified activity timeline ---------- */
+  const timeline = useMemo(() => {
+    if (!data) return [];
+    const items: {
+      key: string;
+      time: string;
+      icon: React.ElementType;
+      tone: string;
+      title: string;
+      detail?: string;
+    }[] = [];
+
+    for (const e of data.todayEvents) {
+      const meta = EVENT_META[e.type] ?? {
+        label: e.type,
+        icon: CircleDot,
+        tone: "text-muted-foreground",
+      };
+      items.push({
+        key: `ev-${e.id}`,
+        time: e.created_at,
+        icon: meta.icon,
+        tone: meta.tone,
+        title: meta.label,
+        detail: e.message ?? undefined,
+      });
+    }
+
+    for (const t of data.todayTrips) {
+      items.push({
+        key: `trip-${t.id}-start`,
+        time: t.start_time,
+        icon: Car,
+        tone: "text-sky-400",
+        title: "Trip started",
+        detail: t.start_location ?? undefined,
+      });
+      if (t.end_time) {
+        items.push({
+          key: `trip-${t.id}-end`,
+          time: t.end_time,
+          icon: CircleDot,
+          tone: "text-muted-foreground",
+          title: `Trip ended — ${t.distance_km != null ? `${t.distance_km} km` : ""}${t.end_time ? ` · ${formatDuration(tripDurationMinutes(t.start_time, t.end_time) ?? 0)}` : ""}`,
+          detail: t.end_location ?? undefined,
+        });
+      }
+    }
+
+    return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [data]);
 
-  const isOnline =
-    !!data?.device.last_seen_at &&
-    Date.now() - new Date(data.device.last_seen_at).getTime() < ONLINE_WINDOW_MS;
+  const locationAddress = data?.latest ? data.log[0]?.address ?? null : null;
 
-  const selectedDevice = devices.find((d) => d.id === deviceId);
+  const gpsQuality = data?.latest
+    ? (dopQuality(data.latest.hdop) ?? dopQuality(data.latest.pdop))
+    : null;
 
   return (
     <div>
       <PageHeader
         title="AI Report"
-        description="Complete per-minute telemetry extract for every tracker — device, location, GNSS quality, power, network, events and derived analytics"
+        description="What is happening now, what happened today, and why — with full telemetry available on demand."
         actions={
-          <Button variant="outline" size="sm" className="border-border bg-card/60" onClick={load} disabled={loading || !deviceId}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={deviceId} onValueChange={setDeviceId}>
+              <SelectTrigger className="w-[260px] bg-card/60">
+                <SelectValue placeholder="Select a tracker" />
+              </SelectTrigger>
+              <SelectContent>
+                {devices.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name} · {d.imei}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-border bg-card/60"
+              onClick={load}
+              disabled={loading || !deviceId}
+            >
+              <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         }
       />
-
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Select value={deviceId} onValueChange={setDeviceId}>
-          <SelectTrigger className="w-full bg-card/60 sm:w-[340px]">
-            <SelectValue placeholder="Select a tracker" />
-          </SelectTrigger>
-          <SelectContent>
-            {devices.map((d) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.name} · {d.imei}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {selectedDevice && data && (
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={cn(
-                "font-medium",
-                isOnline
-                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
-                  : "border-rose-500/25 bg-rose-500/10 text-rose-400",
-              )}
-            >
-              {isOnline ? "Online" : "Offline"}
-            </Badge>
-            {lastRefresh && (
-              <span className="text-xs text-muted-foreground">
-                Auto-refreshes every minute · last {format(lastRefresh, "HH:mm:ss")}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
 
       {devices.length === 0 ? (
         <EmptyState
@@ -419,9 +488,9 @@ export default function AiReportPage() {
           description="Register a GPS device under Assets → GPS Devices to unlock its full telemetry report."
         />
       ) : loading && !data ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-56 rounded-xl" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-44 rounded-xl" />
           ))}
         </div>
       ) : !data?.latest ? (
@@ -431,366 +500,556 @@ export default function AiReportPage() {
           description="This tracker is registered but hasn't reported a position yet. Data appears here within a minute of its first ping."
         />
       ) : (
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {/* DEVICE */}
-            <SectionCard icon={BrainCircuit} title="Device">
-              <Field label="IMEI" value={data.device.imei} />
-              <Field
-                label="Device model"
-                value={
-                  data.device.device_model?.model
-                    ? `${data.device.device_model.manufacturer ?? ""} ${data.device.device_model.model}`.trim()
-                    : data.device.name
-                }
-              />
-              <Field
-                label="Last seen"
-                value={
-                  data.device.last_seen_at
-                    ? formatDistanceToNow(new Date(data.device.last_seen_at), { addSuffix: true })
-                    : "Never"
-                }
-              />
-              <Field
-                label="Online status"
-                value={
-                  <span className={isOnline ? "text-emerald-400" : "text-rose-400"}>
-                    {isOnline ? "● Online" : "● Offline"}
-                  </span>
-                }
-                hint="Online = reported within the last 10 minutes"
-              />
-            </SectionCard>
-
-            {/* LOCATION */}
-            <SectionCard icon={MapPin} title="Location">
-              <Field label="Latitude" value={data.latest.latitude.toFixed(6)} />
-              <Field label="Longitude" value={data.latest.longitude.toFixed(6)} />
-              <Field label="Timestamp (device)" value={fmtDateTime(data.latest.recorded_at)} />
-              <Field label="Server received" value={fmtDateTime(data.latest.updated_at)} />
-              <Field
-                label="Speed"
-                value={data.latest.speed != null ? `${data.latest.speed} km/h` : "—"}
-              />
-              <Field label="Heading" value={headingLabel(data.latest.course)} />
-              <Field
-                label="Altitude"
-                value={data.latest.altitude != null ? `${data.latest.altitude} m` : "—"}
-              />
-            </SectionCard>
-
-            {/* GPS QUALITY */}
-            <SectionCard icon={Satellite} title="GPS quality">
-              <Field
-                label="GNSS status"
-                value={data.latest.gnss_status != null ? (GNSS_STATUS[data.latest.gnss_status] ?? `Code ${data.latest.gnss_status}`) : "—"}
-              />
-              <Field label="Satellites" value={data.latest.satellites ?? "—"} />
-              <Field
-                label="HDOP"
-                value={
-                  <span className={dopQuality(data.latest.hdop).cls}>
-                    {data.latest.hdop ?? "—"}
-                    {data.latest.hdop != null && ` · ${dopQuality(data.latest.hdop).label}`}
-                  </span>
-                }
-                hint="Horizontal dilution of precision — lower is better"
-              />
-              <Field
-                label="PDOP"
-                value={
-                  <span className={dopQuality(data.latest.pdop).cls}>
-                    {data.latest.pdop ?? "—"}
-                    {data.latest.pdop != null && ` · ${dopQuality(data.latest.pdop).label}`}
-                  </span>
-                }
-                hint="Position (3D) dilution of precision — lower is better"
-              />
-            </SectionCard>
-
-            {/* VEHICLE STATUS */}
-            <SectionCard icon={Gauge} title="Vehicle status">
-              <Field
-                label="Ignition"
-                value={
+        <div className="space-y-4">
+          {/* ============ LEVEL 1 — WHAT'S HAPPENING NOW ============ */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-border bg-card/60">
+              <CardHeader className="pb-1 pt-4">
+                <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Signal className="h-4 w-4 text-primary" /> Tracker
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
                   <span
-                    className={
-                      data.latest.ignition === true
-                        ? "text-emerald-400"
-                        : data.latest.ignition === false
-                          ? "text-muted-foreground"
-                          : ""
-                    }
+                    className={cn(
+                      "relative flex h-3 w-3",
+                      isOnline ? "text-emerald-400" : "text-rose-400",
+                    )}
                   >
-                    {boolLabel(data.latest.ignition)}
+                    {isOnline && (
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
+                    )}
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-current" />
                   </span>
-                }
-              />
-              <Field label="Movement" value={boolLabel(data.latest.movement)} />
-              <Field
-                label="Sleep mode"
-                value={
-                  data.latest.sleep_mode != null
-                    ? (SLEEP_MODES[data.latest.sleep_mode] ?? `Code ${data.latest.sleep_mode}`)
-                    : "—"
-                }
-              />
-              <Field label="Door" value={boolLabel(data.latest.door_open)} />
-            </SectionCard>
-
-            {/* POWER */}
-            <SectionCard icon={Zap} title="Power">
-              <Field
-                label="External voltage"
-                value={
-                  data.latest.external_voltage_mv != null
-                    ? `${(data.latest.external_voltage_mv / 1000).toFixed(2)} V`
-                    : data.latest.external_power === true
-                      ? "Present"
-                      : "—"
-                }
-              />
-              <Field
-                label="Battery voltage"
-                value={
-                  data.latest.battery_voltage_mv != null
-                    ? `${(data.latest.battery_voltage_mv / 1000).toFixed(2)} V`
-                    : "—"
-                }
-              />
-              <Field
-                label="Battery current"
-                value={
-                  data.latest.battery_current_ma != null
-                    ? `${data.latest.battery_current_ma} mA`
-                    : "—"
-                }
-              />
-              <Field
-                label="Battery level"
-                value={
-                  data.latest.battery_level != null ? `${data.latest.battery_level}%` : "—"
-                }
-              />
-            </SectionCard>
-
-            {/* NETWORK */}
-            <SectionCard icon={Signal} title="Network">
-              <Field
-                label="GSM signal"
-                value={
-                  data.latest.gsm_signal != null
-                    ? `${"▮".repeat(Math.max(0, data.latest.gsm_signal))}${"▯".repeat(Math.max(0, 5 - data.latest.gsm_signal))} ${GSM_BARS[data.latest.gsm_signal] ?? data.latest.gsm_signal}`
-                    : "—"
-                }
-              />
-              <Field label="Active GSM operator" value={operatorLabel(data.latest.gsm_operator)} />
-              <Field
-                label="Data mode"
-                value={isOnline ? "GPRS / TCP (packet data)" : "Offline"}
-                hint="How the tracker currently transmits to the platform"
-              />
-            </SectionCard>
-
-            {/* EVENTS */}
-            <SectionCard icon={Activity} title="Events · today" className="md:col-span-2">
-              <div className="flex flex-wrap gap-2 py-2">
-                {REPORTED_EVENT_TYPES.map((type) => {
-                  const count = eventCounts.get(type) ?? 0;
-                  return (
-                    <Badge
-                      key={type}
-                      variant="outline"
-                      className={cn(
-                        "font-medium",
-                        count > 0
-                          ? "border-primary/30 bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground/60",
-                      )}
-                    >
-                      {EVENT_SHORT[type]}: {count}
-                    </Badge>
-                  );
-                })}
-              </div>
-              {data.todayEvents.length > 0 && (
-                <div className="mt-1 space-y-1 border-t border-border/40 pt-2">
-                  {data.todayEvents.slice(0, 6).map((e) => (
-                    <div key={e.id} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate text-muted-foreground">
-                        {EVENT_SHORT[e.type] ?? e.type}
-                      </span>
-                      <span className="shrink-0 text-muted-foreground/70">
-                        {format(new Date(e.created_at), "HH:mm:ss")}
-                      </span>
-                    </div>
-                  ))}
+                  <span
+                    className={cn(
+                      "text-xl font-bold tracking-tight",
+                      isOnline ? "text-emerald-400" : "text-rose-400",
+                    )}
+                  >
+                    {isOnline ? "Online" : "Offline"}
+                  </span>
                 </div>
-              )}
-            </SectionCard>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Last seen{" "}
+                  {data.device.last_seen_at
+                    ? formatDistanceToNow(new Date(data.device.last_seen_at), { addSuffix: true })
+                    : "never"}
+                </p>
+                <p className="mt-2 truncate text-xs text-muted-foreground">
+                  {data.device.device_model?.manufacturer ?? ""}{" "}
+                  {data.device.device_model?.model ?? data.device.name} · IMEI {data.device.imei}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-card/60">
+              <CardHeader className="pb-1 pt-4">
+                <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <MapPin className="h-4 w-4 text-primary" /> Current location
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="truncate text-xl font-bold tracking-tight">
+                  {locationAddress ?? fmtCoords(data.latest)}
+                </p>
+                {locationAddress && (
+                  <p className="text-xs text-muted-foreground">{fmtCoords(data.latest)}</p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(data.latest.recorded_at), { addSuffix: true })}
+                  {(data.latest.speed ?? 0) <= 2
+                    ? " · Parked"
+                    : ` · ${Math.round(data.latest.speed ?? 0)} km/h ${headingLabel(data.latest.course)}`}
+                </p>
+                <a
+                  href={`https://maps.google.com/?q=${data.latest.latitude},${data.latest.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View on map <MoveRight className="h-3 w-3" />
+                </a>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-card/60">
+              <CardHeader className="pb-1 pt-4">
+                <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Timer className="h-4 w-4 text-primary" /> Today
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xl font-bold tracking-tight">
+                  {analytics ? analytics.todayDistance.toFixed(1) : "0.0"} km
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {analytics ? formatDuration(analytics.todayMinutes) : "0m"} driving ·{" "}
+                  {analytics?.tripCount ?? 0} trips
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                  {analytics && analytics.stopCount > 0 && (
+                    <span className="text-muted-foreground">{analytics.stopCount} stops</span>
+                  )}
+                  {data.openTrip && (
+                    <span className="font-medium text-sky-400">
+                      Trip in progress — {analytics!.runningDistance.toFixed(1)} km so far
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* DERIVED ANALYTICS */}
-          {analytics && (
-            <SectionCard icon={Timer} title="Derived analytics">
-              <div className="grid gap-x-10 py-1 sm:grid-cols-2 xl:grid-cols-4">
-                <div>
-                  <Field
-                    label="Trip distance (current)"
-                    value={
-                      data.openTrip
-                        ? `${analytics.runningDistance.toFixed(2)} km`
-                        : "No active trip"
-                    }
-                  />
-                  <Field
-                    label="Trip duration (current)"
-                    value={
-                      data.openTrip ? formatDuration(analytics.runningMinutes) : "No active trip"
-                    }
-                  />
-                  <Field
-                    label="Idle duration"
-                    value={
-                      analytics.idleMinutes != null
-                        ? formatDuration(analytics.idleMinutes)
-                        : "Not idling"
-                    }
-                  />
-                </div>
-                <div>
-                  <Field
-                    label="Stop duration"
-                    value={
-                      analytics.stopMinutes != null
-                        ? formatDuration(analytics.stopMinutes)
-                        : "Vehicle in use"
-                    }
-                    hint="Time since ignition was last switched off"
-                  />
-                  <Field label="Daily distance" value={`${analytics.todayDistance.toFixed(1)} km`} />
-                  <Field label="Daily driving time" value={formatDuration(analytics.todayMinutes)} />
-                </div>
-                <div>
-                  <Field
-                    label="Last known location"
-                    value={
-                      <a
-                        className="text-primary hover:underline"
-                        href={`https://maps.google.com/?q=${data.latest.latitude},${data.latest.longitude}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {data.latest.latitude.toFixed(5)}, {data.latest.longitude.toFixed(5)}
-                      </a>
-                    }
-                  />
-                  <Field label="Vehicle" value={data.vehicle?.name ?? "Unassigned"} />
-                  <Field
-                    label="Odometer"
-                    value={data.vehicle?.odometer != null ? `${data.vehicle.odometer} km` : "—"}
-                  />
-                </div>
-                <div>
-                  <Field label="Trips today (completed)" value={String(data.todayTrips.length)} />
-                  <Field
-                    label="Auto trip in progress"
-                    value={data.openTrip?.auto_generated ? "Yes" : data.openTrip ? "Manual" : "No"}
-                  />
-                  <Field
-                    label="Log entries (last hour)"
-                    value={String(data.log.length)}
-                    hint="Per-minute telemetry rows retained for this view"
-                  />
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {/* PER-MINUTE LOG */}
-          <Card className="border-border bg-card/60">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4">
-              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Compass className="h-4 w-4 text-primary" />
-                Live telemetry log — per minute
+          {/* ============ AI INSIGHT ============ */}
+          <Card className="border-primary/25 bg-primary/5">
+            <CardHeader className="pb-1 pt-4">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                <BrainCircuit className="h-4 w-4" /> AI Insight
               </CardTitle>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <BatteryCharging className="h-3.5 w-3.5" />
-                newest {data.log.length} records
-              </span>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="pl-4">Time (device)</TableHead>
-                      <TableHead>Lat</TableHead>
-                      <TableHead>Lon</TableHead>
-                      <TableHead>km/h</TableHead>
-                      <TableHead className="hidden md:table-cell">Head</TableHead>
-                      <TableHead className="hidden lg:table-cell">Alt</TableHead>
-                      <TableHead className="hidden md:table-cell">Sats</TableHead>
-                      <TableHead className="hidden xl:table-cell">HDOP</TableHead>
-                      <TableHead className="hidden xl:table-cell">PDOP</TableHead>
-                      <TableHead className="hidden sm:table-cell">Ign</TableHead>
-                      <TableHead className="hidden lg:table-cell">Move</TableHead>
-                      <TableHead className="hidden lg:table-cell">Ext V</TableHead>
-                      <TableHead className="hidden xl:table-cell">Batt V</TableHead>
-                      <TableHead className="hidden xl:table-cell">GSM</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.log.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap pl-4 text-xs">
-                          {format(new Date(p.recorded_at), "HH:mm:ss")}
-                        </TableCell>
-                        <TableCell className="text-xs">{p.latitude.toFixed(5)}</TableCell>
-                        <TableCell className="text-xs">{p.longitude.toFixed(5)}</TableCell>
-                        <TableCell className="text-xs">{p.speed ?? "—"}</TableCell>
-                        <TableCell className="hidden text-xs md:table-cell">
-                          {headingLabel(p.course)}
-                        </TableCell>
-                        <TableCell className="hidden text-xs lg:table-cell">
-                          {p.altitude ?? "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs md:table-cell">
-                          {p.satellites ?? "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs xl:table-cell">{p.hdop ?? "—"}</TableCell>
-                        <TableCell className="hidden text-xs xl:table-cell">{p.pdop ?? "—"}</TableCell>
-                        <TableCell className="hidden text-xs sm:table-cell">
-                          {p.ignition == null ? "—" : p.ignition ? "ON" : "off"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs lg:table-cell">
-                          {p.movement == null ? "—" : p.movement ? "yes" : "no"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs lg:table-cell">
-                          {p.external_voltage_mv != null
-                            ? `${(p.external_voltage_mv / 1000).toFixed(1)}V`
-                            : p.external_power === true
-                              ? "OK"
-                              : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs xl:table-cell">
-                          {p.battery_voltage_mv != null
-                            ? `${(p.battery_voltage_mv / 1000).toFixed(2)}V`
-                            : p.battery_level != null
-                              ? `${p.battery_level}%`
-                              : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-xs xl:table-cell">
-                          {p.gsm_signal ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <CardContent className="space-y-1.5">
+              {insights.map((insight, i) => (
+                <div key={i} className="flex items-start gap-2.5 text-sm">
+                  {insight.tone === "ok" && (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                  )}
+                  {insight.tone === "warn" && (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  )}
+                  {insight.tone === "alert" && (
+                    <Siren className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                  )}
+                  {insight.tone === "neutral" && (
+                    <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
+                  )}
+                  <span>{insight.text}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
+
+          {/* ============ TABS ============ */}
+          <Tabs defaultValue="overview">
+            <TabsList className="bg-card/60">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="events">
+                Events{data.todayEvents.length > 0 ? ` (${data.todayEvents.length})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="trips">
+                Trips{data.todayTrips.length > 0 ? ` (${data.todayTrips.length})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="raw">Raw Telemetry</TabsTrigger>
+            </TabsList>
+
+            {/* ---------- OVERVIEW ---------- */}
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Vehicle activity */}
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Car className="h-4 w-4 text-primary" /> Vehicle activity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border/40">
+                    <Field
+                      label="Status"
+                      value={
+                        (data.latest.speed ?? 0) > 2
+                          ? "Moving"
+                          : data.latest.ignition === true
+                            ? "Running — stationary"
+                            : ((data.latest.speed ?? 0) <= 2 ? "Parked" : "—")
+                      }
+                    />
+                    <Field
+                      label="Speed"
+                      value={data.latest.speed != null ? `${data.latest.speed} km/h` : "—"}
+                    />
+                    <Field
+                      label="Ignition"
+                      value={
+                        data.latest.ignition == null ? null : data.latest.ignition ? (
+                          <span className="text-emerald-400">On</span>
+                        ) : (
+                          "Off"
+                        )
+                      }
+                    />
+                    {data.latest.movement != null && (
+                      <Field
+                        label="Movement"
+                        value={data.latest.movement ? "Detected" : "Not detected"}
+                      />
+                    )}
+                    {analytics?.stopMinutes != null && (
+                      <Field
+                        label="Stopped for"
+                        value={formatDuration(analytics.stopMinutes)}
+                      />
+                    )}
+                    {analytics?.idleMinutes != null && analytics.idleMinutes > 1 && (
+                      <Field label="Idling for" value={formatDuration(analytics.idleMinutes)} />
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Tracker health — merged device/power/network/gps */}
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <BatteryCharging className="h-4 w-4 text-primary" /> Tracker health
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border/40">
+                    <Field
+                      label="Network"
+                      value={`${isOnline ? "Online" : "Offline"}${data.latest.gsm_signal != null ? ` · ${GSM_BARS[data.latest.gsm_signal] ?? data.latest.gsm_signal} signal${operatorLabel(data.latest.gsm_operator) ? ` · ${operatorLabel(data.latest.gsm_operator)}` : ""}` : ""}`}
+                      sub={data.latest.sleep_mode != null && data.latest.sleep_mode > 0 ? SLEEP_MODES[data.latest.sleep_mode] : null}
+                    />
+                    {gpsQuality ? (
+                      <Field
+                        label="GPS"
+                        value={
+                          <span className={gpsQuality.cls}>
+                            {gpsQuality.label}
+                            {data.latest.satellites != null && ` (${data.latest.satellites} sats)`}
+                          </span>
+                        }
+                      />
+                    ) : data.latest.satellites != null ? (
+                      <Field label="GPS" value={`${data.latest.satellites} satellites`} />
+                    ) : null}
+                    {data.latest.external_voltage_mv != null || data.latest.external_power != null ? (
+                      <Field
+                        label="External power"
+                        value={
+                          <span
+                            className={
+                              data.latest.external_power === false ? "text-rose-400" : undefined
+                            }
+                          >
+                            {data.latest.external_voltage_mv != null
+                              ? `${(data.latest.external_voltage_mv / 1000).toFixed(2)} V`
+                              : data.latest.external_power
+                                ? "Connected"
+                                : "Disconnected"}
+                          </span>
+                        }
+                      />
+                    ) : null}
+                    {data.latest.battery_voltage_mv != null || data.latest.battery_level != null ? (
+                      <Field
+                        label="Battery"
+                        value={
+                          data.latest.battery_voltage_mv != null
+                            ? `${(data.latest.battery_voltage_mv / 1000).toFixed(2)} V${data.latest.battery_level != null ? ` · ${data.latest.battery_level}%` : ""}`
+                            : `${data.latest.battery_level}%`
+                        }
+                      />
+                    ) : null}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Quick glance day's events as compact summary chips */}
+              {timeline.length > 0 && (
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Activity className="h-4 w-4 text-primary" /> Latest activity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative space-y-4 before:absolute before:left-[7px] before:top-1 before:h-[calc(100%-12px)] before:w-px before:bg-border">
+                      {timeline.slice(0, 4).map((item) => (
+                        <div key={item.key} className="relative flex items-start gap-3 pl-6">
+                          <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-card">
+                            <item.icon className={cn("h-3.5 w-3.5", item.tone)} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-tight">{item.title}</p>
+                            {item.detail && (
+                              <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground/70">
+                              {format(new Date(item.time), "HH:mm")}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* ---------- EVENTS TIMELINE ---------- */}
+            <TabsContent value="events">
+              <Card className="border-border bg-card/60">
+                <CardContent className="pt-6">
+                  {timeline.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No events recorded today. New activity appears here automatically.
+                    </p>
+                  ) : (
+                    <div className="relative space-y-5 before:absolute before:left-[7px] before:top-1 before:h-[calc(100%-12px)] before:w-px before:bg-border">
+                      {timeline.map((item) => (
+                        <div key={item.key} className="relative flex items-start gap-4 pl-7">
+                          <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-card">
+                            <item.icon className={cn("h-3.5 w-3.5", item.tone)} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium leading-tight">{item.title}</p>
+                            {item.detail && (
+                              <p className="text-xs text-muted-foreground">{item.detail}</p>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {format(new Date(item.time), "HH:mm:ss")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ---------- TRIPS ---------- */}
+            <TabsContent value="trips">
+              <Card className="border-border bg-card/60">
+                <CardContent className="pt-6">
+                  {data.todayTrips.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No trips recorded today.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.todayTrips.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-center gap-4 rounded-lg border border-border/60 bg-card/40 px-4 py-3"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                            <Car className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">
+                              {format(new Date(t.start_time), "HH:mm")}
+                              {t.end_time ? ` – ${format(new Date(t.end_time), "HH:mm")}` : " —"}
+                              {t.status === "IN_PROGRESS" && (
+                                <Badge className="ml-2 border-sky-500/25 bg-sky-500/10 text-sky-400" variant="outline">
+                                  In progress
+                                </Badge>
+                              )}
+                            </p>
+                            {(t.start_location || t.end_location) && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {t.start_location ?? "?"} → {t.end_location ?? "…"}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right text-xs text-muted-foreground">
+                            {t.distance_km != null && <p className="font-medium">{t.distance_km} km</p>}
+                            <p>{formatDuration(tripDurationMinutes(t.start_time, t.end_time) ?? (t.status === "IN_PROGRESS" ? analytics?.runningMinutes ?? 0 : 0))}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ---------- RAW TELEMETRY ---------- */}
+            <TabsContent value="raw" className="space-y-4">
+              {/* Detailed technical fields — only visible here */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Satellite className="h-4 w-4 text-primary" /> GNSS detail
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border/40">
+                    <Field label="Satellites" value={data.latest.satellites ?? "Not reported"} />
+                    <Field
+                      label="HDOP"
+                      value={
+                        data.latest.hdop != null
+                          ? `${data.latest.hdop}${dopQuality(data.latest.hdop) ? ` · ${dopQuality(data.latest.hdop)!.label}` : ""}`
+                          : "Not reported"
+                      }
+                    />
+                    <Field
+                      label="PDOP"
+                      value={
+                        data.latest.pdop != null
+                          ? `${data.latest.pdop}${dopQuality(data.latest.pdop) ? ` · ${dopQuality(data.latest.pdop)!.label}` : ""}`
+                          : "Not reported"
+                      }
+                    />
+                    <Field label="GNSS status code" value={data.latest.gnss_status ?? "Not reported"} />
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Zap className="h-4 w-4 text-primary" /> Power detail
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border/40">
+                    <Field
+                      label="External voltage"
+                      value={
+                        data.latest.external_voltage_mv != null
+                          ? `${(data.latest.external_voltage_mv / 1000).toFixed(2)} V`
+                          : "Not reported"
+                      }
+                    />
+                    <Field
+                      label="Battery voltage"
+                      value={
+                        data.latest.battery_voltage_mv != null
+                          ? `${(data.latest.battery_voltage_mv / 1000).toFixed(2)} V`
+                          : "Not reported"
+                      }
+                    />
+                    <Field
+                      label="Battery current"
+                      value={
+                        data.latest.battery_current_ma != null
+                          ? `${data.latest.battery_current_ma} mA`
+                          : "Not reported"
+                      }
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border bg-card/60">
+                  <CardHeader className="pb-1 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Signal className="h-4 w-4 text-primary" /> Network detail
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="divide-y divide-border/40">
+                    <Field
+                      label="GSM signal"
+                      value={
+                        data.latest.gsm_signal != null
+                          ? `${"▮".repeat(data.latest.gsm_signal)}${"▯".repeat(5 - data.latest.gsm_signal)} ${GSM_BARS[data.latest.gsm_signal] ?? data.latest.gsm_signal}`
+                          : "Not reported"
+                      }
+                    />
+                    <Field
+                      label="Operator (MCC-MNC)"
+                      value={operatorLabel(data.latest.gsm_operator) ?? "Not reported"}
+                    />
+                    <Field
+                      label="Sleep mode"
+                      value={
+                        data.latest.sleep_mode != null
+                          ? (SLEEP_MODES[data.latest.sleep_mode] ?? `Code ${data.latest.sleep_mode}`)
+                          : "Not reported"
+                      }
+                    />
+                    <Field label="Device timestamp" value={format(new Date(data.latest.recorded_at), "dd MMM yyyy HH:mm:ss")} />
+                    <Field label="Server received" value={format(new Date(data.latest.updated_at), "dd MMM yyyy HH:mm:ss")} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border-border bg-card/60">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4">
+                  <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Compass className="h-4 w-4 text-primary" /> Raw telemetry log — last {data.log.length} records
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="pl-4">Time</TableHead>
+                          <TableHead>Lat</TableHead>
+                          <TableHead>Lon</TableHead>
+                          <TableHead>km/h</TableHead>
+                          <TableHead className="hidden md:table-cell">Head</TableHead>
+                          <TableHead className="hidden lg:table-cell">Alt</TableHead>
+                          <TableHead className="hidden md:table-cell">Sats</TableHead>
+                          <TableHead className="hidden xl:table-cell">HDOP</TableHead>
+                          <TableHead className="hidden xl:table-cell">PDOP</TableHead>
+                          <TableHead className="hidden sm:table-cell">Ign</TableHead>
+                          <TableHead className="hidden lg:table-cell">Move</TableHead>
+                          <TableHead className="hidden lg:table-cell">Ext V</TableHead>
+                          <TableHead className="hidden xl:table-cell">Batt V</TableHead>
+                          <TableHead className="hidden xl:table-cell">GSM</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.log.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={14} className="py-8 text-center text-sm text-muted-foreground">
+                              No telemetry records yet.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          data.log.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell className="whitespace-nowrap pl-4 text-xs">
+                                {format(new Date(p.recorded_at), "HH:mm:ss")}
+                              </TableCell>
+                              <TableCell className="text-xs">{p.latitude.toFixed(5)}</TableCell>
+                              <TableCell className="text-xs">{p.longitude.toFixed(5)}</TableCell>
+                              <TableCell className="text-xs">{p.speed ?? "—"}</TableCell>
+                              <TableCell className="hidden text-xs md:table-cell">
+                                {headingLabel(p.course)}
+                              </TableCell>
+                              <TableCell className="hidden text-xs lg:table-cell">
+                                {p.altitude ?? "—"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs md:table-cell">
+                                {p.satellites ?? "—"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs xl:table-cell">{p.hdop ?? "—"}</TableCell>
+                              <TableCell className="hidden text-xs xl:table-cell">{p.pdop ?? "—"}</TableCell>
+                              <TableCell className="hidden text-xs sm:table-cell">
+                                {p.ignition == null ? "—" : p.ignition ? "ON" : "off"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs lg:table-cell">
+                                {p.movement == null ? "—" : p.movement ? "yes" : "no"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs lg:table-cell">
+                                {p.external_voltage_mv != null
+                                  ? `${(p.external_voltage_mv / 1000).toFixed(1)}V`
+                                  : p.external_power === true
+                                    ? "OK"
+                                    : "—"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs xl:table-cell">
+                                {p.battery_voltage_mv != null
+                                  ? `${(p.battery_voltage_mv / 1000).toFixed(2)}V`
+                                  : p.battery_level != null
+                                    ? `${p.battery_level}%`
+                                    : "—"}
+                              </TableCell>
+                              <TableCell className="hidden text-xs xl:table-cell">
+                                {p.gsm_signal ?? "—"}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
