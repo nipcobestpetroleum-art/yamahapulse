@@ -46,6 +46,7 @@ interface AlertRuleRow extends AlertRule {
 const TYPE_LABELS: Record<string, string> = {
   OVERSPEED: "Speed limit exceeded",
   IDLE: "Excessive idling",
+  LOW_BATTERY: "Low device battery",
   GEOFENCE_ENTER: "Enters geofence",
   GEOFENCE_EXIT: "Exits geofence",
   DEVICE_OFFLINE: "Device offline",
@@ -204,6 +205,7 @@ export default function AlertRulesPage() {
                       {TYPE_LABELS[r.type] ?? r.type}
                       {r.type === "OVERSPEED" && r.speed_limit ? ` (${r.speed_limit} km/h)` : ""}
                       {r.type === "IDLE" && r.idle_minutes ? ` (${r.idle_minutes} min)` : ""}
+                      {r.type === "LOW_BATTERY" && r.battery_threshold ? ` (<${r.battery_threshold}%)` : ""}
                       {r.geofence?.name ? ` · ${r.geofence.name}` : ""}
                     </span>
                   </TableCell>

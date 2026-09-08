@@ -1,6 +1,6 @@
-import { LogOut } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,7 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full outline-none ring-ring focus-visible:ring-2">
         <Avatar className="h-9 w-9 border border-border">
+          <AvatarImage src={profile?.avatar_url ?? undefined} alt={displayName} />
           <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
             {initials}
           </AvatarFallback>
@@ -43,6 +44,11 @@ export function UserMenu() {
             </span>
           )}
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate("/profile")}>
+          <User className="mr-2 h-4 w-4" />
+          My profile
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {

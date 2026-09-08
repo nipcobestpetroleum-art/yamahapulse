@@ -208,7 +208,9 @@ serve(async (req) => {
   // distance travelled and elapsed time for odometer / engine-hour tracking.
   const { data: previousPosition } = await supabase
     .from("latest_positions")
-    .select("latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted")
+    .select(
+      "latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted, low_battery_alerted",
+    )
     .eq("device_id", device.id)
     .maybeSingle();
 
@@ -267,6 +269,34 @@ serve(async (req) => {
     }
   }
 
+  // Low battery: debounced so we alert once per drop below threshold, then reset once recovered.
+  let lowBatteryAlerted = previousPosition?.low_battery_alerted ?? false;
+  let lowBatteryTriggered = false;
+  let batteryThreshold: number | null = null;
+
+  if (data.battery !== null) {
+    const { data: batteryRule } = await supabase
+      .from("alert_rules")
+      .select("battery_threshold")
+      .eq("organization_id", orgId)
+      .eq("type", "LOW_BATTERY")
+      .eq("enabled", true)
+      .not("battery_threshold", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    batteryThreshold = batteryRule?.battery_threshold ?? null;
+
+    if (batteryThreshold !== null) {
+      if (data.battery < batteryThreshold) {
+        if (!lowBatteryAlerted) lowBatteryTriggered = true;
+        lowBatteryAlerted = true;
+      } else if (data.battery >= batteryThreshold + 5) {
+        lowBatteryAlerted = false;
+      }
+    }
+  }
+
   // Update the live "latest" snapshot
   await supabase.from("latest_positions").upsert(
     {
@@ -274,6 +304,7 @@ serve(async (req) => {
       updated_at: now.toISOString(),
       idle_since: idleSince?.toISOString() ?? null,
       idle_alerted: idleAlerted,
+      low_battery_alerted: lowBatteryAlerted,
     },
     { onConflict: "device_id" },
   );
@@ -338,6 +369,16 @@ serve(async (req) => {
       severity: "warning",
       message: `Vehicle idling for over ${Math.round(idleEventDurationMinutes)} minutes`,
       metadata: { idle_minutes: Math.round(idleEventDurationMinutes) },
+    });
+  }
+
+  // Low battery
+  if (lowBatteryTriggered && batteryThreshold !== null) {
+    events.push({
+      type: "LOW_BATTERY",
+      severity: "warning",
+      message: `Device battery at ${data.battery}% — below the ${batteryThreshold}% threshold`,
+      metadata: { battery: data.battery, threshold: batteryThreshold },
     });
   }
 
@@ -436,7 +477,7 @@ serve(async (req) => {
     if (eventsError) console.error("[ingest] failed to insert device events", eventsError);
 
     // Critical events also surface as actionable alerts in the notification inbox
-    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM", "POWER_CUT"];
+    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM", "POWER_CUT", "LOW_BATTERY"];
     const criticalEvents = events.filter((e) => criticalTypes.includes(e.type));
     if (criticalEvents.length > 0) {
       const { error: alertsError } = await supabase.from("alerts").insert(
@@ -452,6 +493,12 @@ serve(async (req) => {
         })),
       );
       if (alertsError) console.error("[ingest] failed to insert alerts", alertsError);
+
+      try {
+        await sendCriticalAlertEmails(supabase, orgId, criticalEvents);
+      } catch (err) {
+        console.error("[ingest] alert email dispatch failed", err);
+      }
     }
   }
 
@@ -673,6 +720,44 @@ async function identifyDriver(
     longitude,
     metadata: { driver_id: driver.id },
   });
+}
+
+async function sendCriticalAlertEmails(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  orgId: string,
+  criticalEvents: Array<{ type: string; message: string }>,
+) {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) return;
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name, alert_emails")
+    .eq("id", orgId)
+    .maybeSingle();
+
+  const recipients: string[] = org?.alert_emails ?? [];
+  if (recipients.length === 0) return;
+
+  const listHtml = criticalEvents.map((e) => `<li>${e.message}</li>`).join("");
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "Fleet Alerts <onboarding@resend.dev>",
+      to: recipients,
+      subject: `[${org?.name ?? "Fleet"}] Critical alert${criticalEvents.length > 1 ? "s" : ""} detected`,
+      html: `<p>The following critical event${criticalEvents.length > 1 ? "s were" : " was"} detected on your fleet:</p><ul>${listHtml}</ul>`,
+    }),
+  });
+
+  if (!res.ok) {
+    console.error("[ingest] resend email send failed", await res.text());
+  }
 }
 
 async function recordSensorReadings(

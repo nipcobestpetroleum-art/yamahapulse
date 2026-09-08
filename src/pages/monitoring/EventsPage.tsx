@@ -11,6 +11,7 @@ import {
   LogOut,
   MapPin,
   Pause,
+  BatteryWarning,
   Play,
   Power,
   PowerOff,
@@ -66,6 +67,7 @@ const EVENT_ICONS: Record<DeviceEventType, typeof Activity> = {
   ALARM: Siren,
   POWER_CUT: PowerOff,
   POWER_RESTORED: Power,
+  LOW_BATTERY: BatteryWarning,
 };
 
 const EVENT_LABELS: Record<DeviceEventType, string> = {
@@ -92,6 +94,7 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   ALARM: "Alarm triggered",
   POWER_CUT: "External power lost",
   POWER_RESTORED: "External power restored",
+  LOW_BATTERY: "Low device battery",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {

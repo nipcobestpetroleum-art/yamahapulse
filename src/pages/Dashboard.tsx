@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { VehicleStatusBadge } from "@/components/status-badge";
+import { CriticalEventsWidget } from "@/components/dashboard/critical-events-widget";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Vehicle, VehicleStatus } from "@/types/database";
@@ -269,6 +270,10 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-4">
+            <CriticalEventsWidget />
           </div>
 
           {stats.vehiclesTotal === 0 && (

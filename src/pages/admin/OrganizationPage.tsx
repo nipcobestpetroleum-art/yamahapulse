@@ -47,6 +47,7 @@ export default function OrganizationPage() {
   const [address, setAddress] = useState("");
   const [country, setCountry] = useState("");
   const [timezone, setTimezone] = useState("UTC");
+  const [alertEmails, setAlertEmails] = useState("");
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -57,6 +58,7 @@ export default function OrganizationPage() {
     setAddress(currentOrg.address ?? "");
     setCountry(currentOrg.country ?? "");
     setTimezone(currentOrg.timezone ?? "UTC");
+    setAlertEmails((currentOrg.alert_emails ?? []).join(", "));
   }, [currentOrg]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,6 +75,10 @@ export default function OrganizationPage() {
         address: address.trim() || null,
         country: country.trim() || null,
         timezone,
+        alert_emails: alertEmails
+          .split(",")
+          .map((e) => e.trim())
+          .filter(Boolean),
       })
       .eq("id", currentOrg.id);
     setSaving(false);
@@ -169,6 +175,20 @@ export default function OrganizationPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="org-alert-emails">Critical alert email recipients</Label>
+                  <Input
+                    id="org-alert-emails"
+                    placeholder="ops@example.com, manager@example.com"
+                    disabled={!canEdit}
+                    value={alertEmails}
+                    onChange={(e) => setAlertEmails(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated emails notified for crashes, panic alerts, tampering and other
+                    critical events.
+                  </p>
                 </div>
               </div>
 

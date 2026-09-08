@@ -28,6 +28,7 @@ import type { AlertRule, Geofence } from "@/types/database";
 const TYPES = [
   { value: "OVERSPEED", label: "Speed limit exceeded" },
   { value: "IDLE", label: "Excessive idling" },
+  { value: "LOW_BATTERY", label: "Low device battery" },
   { value: "GEOFENCE_ENTER", label: "Enters geofence" },
   { value: "GEOFENCE_EXIT", label: "Exits geofence" },
   { value: "DEVICE_OFFLINE", label: "Device goes offline" },
@@ -54,6 +55,7 @@ export function AlertRuleFormDialog({ open, onOpenChange, rule, onSaved }: Props
   const [geofenceId, setGeofenceId] = useState("");
   const [speedLimit, setSpeedLimit] = useState("80");
   const [idleMinutes, setIdleMinutes] = useState("10");
+  const [batteryThreshold, setBatteryThreshold] = useState("20");
   const [severity, setSeverity] = useState("warning");
   const [notifyInApp, setNotifyInApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(false);
@@ -73,6 +75,7 @@ export function AlertRuleFormDialog({ open, onOpenChange, rule, onSaved }: Props
     setGeofenceId(rule?.geofence_id ?? "");
     setSpeedLimit(rule?.speed_limit?.toString() ?? "80");
     setIdleMinutes(rule?.idle_minutes?.toString() ?? "10");
+    setBatteryThreshold(rule?.battery_threshold?.toString() ?? "20");
     setSeverity(rule?.severity ?? "warning");
     setNotifyInApp(rule?.notify_in_app ?? true);
     setNotifyEmail(rule?.notify_email ?? false);
@@ -82,6 +85,7 @@ export function AlertRuleFormDialog({ open, onOpenChange, rule, onSaved }: Props
   const isGeofenceType = type === "GEOFENCE_ENTER" || type === "GEOFENCE_EXIT";
   const isSpeedType = type === "OVERSPEED";
   const isIdleType = type === "IDLE";
+  const isBatteryType = type === "LOW_BATTERY";
   // Speed rules may optionally be scoped to a geofence (e.g. a school zone speed limit).
   const showGeofencePicker = isGeofenceType || isSpeedType;
 
@@ -96,6 +100,7 @@ export function AlertRuleFormDialog({ open, onOpenChange, rule, onSaved }: Props
       geofence_id: showGeofencePicker ? geofenceId || null : null,
       speed_limit: isSpeedType ? Number(speedLimit) || null : null,
       idle_minutes: isIdleType ? Number(idleMinutes) || null : null,
+      battery_threshold: isBatteryType ? Number(batteryThreshold) || null : null,
       severity,
       notify_in_app: notifyInApp,
       notify_email: notifyEmail,
@@ -187,6 +192,20 @@ export function AlertRuleFormDialog({ open, onOpenChange, rule, onSaved }: Props
                 min="1"
                 value={idleMinutes}
                 onChange={(e) => setIdleMinutes(e.target.value)}
+              />
+            </div>
+          )}
+
+          {isBatteryType && (
+            <div className="space-y-2">
+              <Label htmlFor="ar-battery">Battery level below (%)</Label>
+              <Input
+                id="ar-battery"
+                type="number"
+                min="1"
+                max="99"
+                value={batteryThreshold}
+                onChange={(e) => setBatteryThreshold(e.target.value)}
               />
             </div>
           )}
