@@ -207,27 +207,25 @@ export default function LiveTrackingPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <LiveMapCanvas
-            vehicles={liveMapVehicles}
-            selectedKey={effectiveSelectedKey}
-            onSelectVehicle={(k) => setSelectedKey(k)}
-          />
+      <div className="space-y-4">
+        <LiveMapCanvas
+          vehicles={liveMapVehicles}
+          selectedKey={effectiveSelectedKey}
+          onSelectVehicle={(k) => setSelectedKey(k)}
+        />
 
-          {positionsError && (
-            <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
-              {positionsError}
-            </div>
-          )}
-          {assignedError && (
-            <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
-              {assignedError}
-            </div>
-          )}
-        </div>
+        {positionsError && (
+          <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
+            {positionsError}
+          </div>
+        )}
+        {assignedError && (
+          <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
+            {assignedError}
+          </div>
+        )}
 
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           <Card className="border-border bg-card/60">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">Fleet status</CardTitle>

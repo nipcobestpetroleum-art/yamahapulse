@@ -69,7 +69,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Live Tracking", href: "/fleet/live", icon: Radar, implemented: true },
       { title: "Vehicles", href: "/vehicles", icon: Car, implemented: true },
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
-      { title: "Drivers", href: "/fleet/drivers", icon: Users },
+      { title: "Drivers", href: "/fleet/drivers", icon: Users, implemented: true },
       { title: "Trips", href: "/fleet/trips", icon: Route },
       { title: "Routes", href: "/fleet/routes", icon: Navigation },
     ],

@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { DeviceStatus, VehicleStatus } from "@/types/database";
+import type { DeviceStatus, DriverStatus, VehicleStatus } from "@/types/database";
 
 const VEHICLE_STYLES: Record<VehicleStatus, string> = {
   ACTIVE: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
@@ -46,6 +46,26 @@ export function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
   return (
     <Badge variant="outline" className={cn("font-medium", DEVICE_STYLES[status])}>
       {DEVICE_LABELS[status]}
+    </Badge>
+  );
+}
+
+const DRIVER_STYLES: Record<DriverStatus, string> = {
+  ACTIVE: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
+  INACTIVE: "border-slate-500/25 bg-slate-500/10 text-slate-400",
+  SUSPENDED: "border-rose-500/25 bg-rose-500/10 text-rose-400",
+};
+
+const DRIVER_LABELS: Record<DriverStatus, string> = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  SUSPENDED: "Suspended",
+};
+
+export function DriverStatusBadge({ status }: { status: DriverStatus }) {
+  return (
+    <Badge variant="outline" className={cn("font-medium", DRIVER_STYLES[status])}>
+      {DRIVER_LABELS[status]}
     </Badge>
   );
 }

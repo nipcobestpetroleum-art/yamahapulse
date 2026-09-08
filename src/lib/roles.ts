@@ -40,6 +40,21 @@ export const DEVICE_WRITE_ROLES: RoleName[] = [
 
 export const DEVICE_DELETE_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN"];
 
+export const DRIVER_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DRIVER_MANAGER",
+];
+
+export const DRIVER_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+  "DRIVER_MANAGER",
+];
+
 export function hasAnyRole(role: RoleName | null, allowed: RoleName[]): boolean {
   if (!role) return false;
   return allowed.includes(role);
