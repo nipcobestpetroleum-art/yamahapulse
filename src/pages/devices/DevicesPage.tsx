@@ -7,9 +7,11 @@ import {
   Cpu,
   Link2,
   Link2Off,
+  Loader2,
   MoreHorizontal,
   Pencil,
   Plus,
+  Radio,
   Search,
   Trash2,
 } from "lucide-react";
@@ -83,6 +85,7 @@ export default function DevicesPage() {
   const [assigning, setAssigning] = useState<GpsDevice | null>(null);
   const [deleting, setDeleting] = useState<GpsDevice | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search);
   const canWrite = hasAnyRole(currentRole, DEVICE_WRITE_ROLES);
@@ -183,6 +186,32 @@ export default function DevicesPage() {
     });
     showSuccess(`Device unassigned from ${device.vehicle_name}`);
     load();
+  };
+
+  const handleTestIngest = async (device: DeviceRow) => {
+    setTestingId(device.id);
+    const { data, error } = await supabase.functions.invoke("ingest", {
+      body: { imei: device.imei, lat: 0, lon: 0, test: true },
+    });
+    setTestingId(null);
+
+    if (error) {
+      let message = error.message;
+      try {
+        const parsed = await (error as { context?: Response }).context?.json();
+        if (parsed?.error) message = parsed.error;
+      } catch {
+        // ignore parse failure, fall back to default message
+      }
+      showError(`Ingest test failed: ${message}`);
+      return;
+    }
+
+    if (data?.ok) {
+      showSuccess(`${device.name} is reachable — collector can deliver positions for this device.`);
+    } else {
+      showError(`Ingest test failed: ${data?.error ?? "Unknown error"}`);
+    }
   };
 
   const handleDelete = async () => {
@@ -350,6 +379,17 @@ export default function DevicesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={testingId === d.id}
+                              onClick={() => handleTestIngest(d)}
+                            >
+                              {testingId === d.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Radio className="mr-2 h-4 w-4" />
+                              )}
+                              Test ingest
+                            </DropdownMenuItem>
                             {canWrite && !d.vehicle_id && (
                               <DropdownMenuItem onClick={() => setAssigning(d)}>
                                 <Link2 className="mr-2 h-4 w-4" />

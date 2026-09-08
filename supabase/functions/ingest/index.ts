@@ -127,6 +127,7 @@ serve(async (req) => {
 
   const url = new URL(req.url);
   const data = parsePayload(url, body);
+  const isTest = (url.searchParams.get("test") ?? body?.test) ? true : false;
 
   if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
   if (data.latitude === null || data.longitude === null) {
@@ -145,6 +146,11 @@ serve(async (req) => {
 
   if (deviceError) return corsResponse({ error: "Device lookup failed" }, 500);
   if (!device) return corsResponse({ error: "Unknown device — register it first in Asset Management" }, 404);
+
+  // Connectivity test: confirm the device is recognized without writing any position data
+  if (isTest) {
+    return corsResponse({ ok: true, test: true, device_id: device.id, message: "Device recognized" });
+  }
 
   // Find the vehicle this device is currently assigned to
   const { data: assignment } = await supabase
