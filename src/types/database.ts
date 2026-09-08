@@ -222,6 +222,7 @@ export interface AlertRule {
   type: string;
   geofence_id: string | null;
   speed_limit: number | null;
+  idle_minutes: number | null;
   severity: string;
   notify_in_app: boolean;
   notify_email: boolean;
@@ -260,9 +261,15 @@ export type Position = {
   address: string | null;
   battery_level: number | null;
   ignition: boolean | null;
+  door_open: boolean | null;
+  external_power: boolean | null;
 };
 
-export type LatestPosition = Omit<Position, "id"> & { device_id: string };
+export type LatestPosition = Omit<Position, "id"> & {
+  device_id: string;
+  idle_since: string | null;
+  idle_alerted: boolean;
+};
 
 export type GeofenceType = "circle" | "polygon";
 
@@ -541,7 +548,9 @@ export type DeviceEventType =
   | "PANIC"
   | "DOOR_OPEN"
   | "DOOR_CLOSE"
-  | "ALARM";
+  | "ALARM"
+  | "POWER_CUT"
+  | "POWER_RESTORED";
 
 export interface DeviceEvent {
   id: string;

@@ -1,0 +1,1 @@
+ALTER TABLE public.alert_rules ADD COLUMN IF NOT EXISTS idle_minutes integer;

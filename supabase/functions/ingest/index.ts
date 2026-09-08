@@ -111,6 +111,7 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
 
   const doorRaw = p("door") ?? p("din3");
   const door = parseBoolLike(doorRaw);
+  const externalPower = parseBoolLike(p("external_power") ?? p("main_power"));
 
   return {
     ident: ident ? String(ident).trim() : null,
@@ -135,6 +136,7 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     panic: parseBoolLike(p("panic") ?? p("sos") ?? p("din2")),
     alarm: parseBoolLike(p("alarm") ?? p("din4")),
     door,
+    externalPower,
     // 1-Wire iButton driver identification
     ibutton: ibuttonRaw ? String(ibuttonRaw).trim() : null,
     // 1-Wire / BLE sensors
@@ -206,7 +208,7 @@ serve(async (req) => {
   // distance travelled and elapsed time for odometer / engine-hour tracking.
   const { data: previousPosition } = await supabase
     .from("latest_positions")
-    .select("latitude, longitude, recorded_at, ignition, door_open")
+    .select("latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted")
     .eq("device_id", device.id)
     .maybeSingle();
 
@@ -228,16 +230,53 @@ serve(async (req) => {
     battery_level: data.battery,
     ignition: data.ignition,
     door_open: data.door,
+    external_power: data.externalPower,
   };
 
   // Insert history row
   const { error: insertError } = await supabase.from("positions").insert(position);
   if (insertError) return corsResponse({ error: "Failed to store position" }, 500);
 
+  // Excessive idling: ignition on + near-zero speed sustained past the org's configured threshold.
+  const isIdlingNow = data.ignition === true && data.speed_kmh !== null && data.speed_kmh <= 2;
+  let idleSince: Date | null = previousPosition?.idle_since ? new Date(previousPosition.idle_since) : null;
+  let idleAlerted = previousPosition?.idle_alerted ?? false;
+  let idleEventDurationMinutes = 0;
+
+  if (isIdlingNow) {
+    if (!idleSince) idleSince = recordedAt;
+  } else {
+    idleSince = null;
+    idleAlerted = false;
+  }
+
+  if (isIdlingNow && idleSince && !idleAlerted) {
+    const { data: idleRule } = await supabase
+      .from("alert_rules")
+      .select("idle_minutes")
+      .eq("organization_id", orgId)
+      .eq("type", "IDLE")
+      .eq("enabled", true)
+      .not("idle_minutes", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (idleRule?.idle_minutes) {
+      idleEventDurationMinutes = (recordedAt.getTime() - idleSince.getTime()) / 60_000;
+      if (idleEventDurationMinutes >= idleRule.idle_minutes) idleAlerted = true;
+    }
+  }
+
   // Update the live "latest" snapshot
-  await supabase
-    .from("latest_positions")
-    .upsert({ ...position, updated_at: now.toISOString() }, { onConflict: "device_id" });
+  await supabase.from("latest_positions").upsert(
+    {
+      ...position,
+      updated_at: now.toISOString(),
+      idle_since: idleSince?.toISOString() ?? null,
+      idle_alerted: idleAlerted,
+    },
+    { onConflict: "device_id" },
+  );
 
   // Device heartbeat
   await supabase
@@ -278,24 +317,103 @@ serve(async (req) => {
     });
   }
 
-  // Overspeed check against the org's configured speed limit rule
+  // External power lost/restored — a common tamper/unplug signal
+  if (
+    data.externalPower !== null &&
+    previousPosition?.external_power !== null &&
+    previousPosition?.external_power !== undefined &&
+    data.externalPower !== previousPosition.external_power
+  ) {
+    events.push(
+      data.externalPower
+        ? { type: "POWER_RESTORED", severity: "info", message: "External power restored" }
+        : { type: "POWER_CUT", severity: "critical", message: "External power lost — possible tamper or unplug" },
+    );
+  }
+
+  // Excessive idling
+  if (isIdlingNow && idleAlerted && idleEventDurationMinutes > 0) {
+    events.push({
+      type: "IDLE",
+      severity: "warning",
+      message: `Vehicle idling for over ${Math.round(idleEventDurationMinutes)} minutes`,
+      metadata: { idle_minutes: Math.round(idleEventDurationMinutes) },
+    });
+  }
+
+  // Geofence containment: track enter/exit and apply geofence-scoped speed zones
+  const { data: geofences } = await supabase
+    .from("geofences")
+    .select("id, name, geometry")
+    .eq("organization_id", orgId)
+    .eq("is_active", true);
+
+  const insideGeofenceIds: string[] = [];
+  const insideGeofenceNames = new Map<string, string>();
+
+  for (const gf of geofences ?? []) {
+    if (gf.geometry?.type !== "circle") continue;
+    const { center, radius } = gf.geometry.coordinates;
+    const distanceKm = haversineKm(center[0], center[1], data.latitude, data.longitude);
+    if (distanceKm * 1000 <= radius) {
+      insideGeofenceIds.push(gf.id);
+      insideGeofenceNames.set(gf.id, gf.name);
+    }
+  }
+
+  if (geofences && geofences.length > 0) {
+    const { data: states } = await supabase
+      .from("geofence_states")
+      .select("geofence_id, inside")
+      .eq("device_id", device.id);
+
+    const stateByGeofence = new Map((states ?? []).map((s: { geofence_id: string; inside: boolean }) => [s.geofence_id, s.inside]));
+
+    for (const gf of geofences) {
+      const nowInside = insideGeofenceIds.includes(gf.id);
+      const wasInside = stateByGeofence.get(gf.id) ?? false;
+      if (nowInside !== wasInside) {
+        events.push({
+          type: nowInside ? "GEOFENCE_ENTER" : "GEOFENCE_EXIT",
+          severity: "info",
+          message: `Vehicle ${nowInside ? "entered" : "exited"} ${gf.name}`,
+          metadata: { geofence_id: gf.id, geofence_name: gf.name },
+        });
+        await supabase
+          .from("geofence_states")
+          .upsert(
+            { device_id: device.id, geofence_id: gf.id, organization_id: orgId, inside: nowInside },
+            { onConflict: "device_id,geofence_id" },
+          );
+      }
+    }
+  }
+
+  // Overspeed check — a geofence-scoped speed zone takes priority over the org-wide limit
   if (data.speed_kmh !== null) {
-    const { data: speedRule } = await supabase
+    const { data: speedRules } = await supabase
       .from("alert_rules")
-      .select("speed_limit")
+      .select("speed_limit, geofence_id")
       .eq("organization_id", orgId)
       .eq("type", "OVERSPEED")
       .eq("enabled", true)
-      .not("speed_limit", "is", null)
-      .limit(1)
-      .maybeSingle();
+      .not("speed_limit", "is", null);
 
-    if (speedRule?.speed_limit && data.speed_kmh > speedRule.speed_limit) {
+    const zoneRule = (speedRules ?? []).find(
+      (r: { geofence_id: string | null }) => r.geofence_id && insideGeofenceIds.includes(r.geofence_id),
+    );
+    const globalRule = (speedRules ?? []).find((r: { geofence_id: string | null }) => !r.geofence_id);
+    const activeRule = zoneRule ?? globalRule;
+
+    if (activeRule?.speed_limit && data.speed_kmh > activeRule.speed_limit) {
+      const zoneName = zoneRule ? insideGeofenceNames.get(zoneRule.geofence_id) : null;
       events.push({
         type: "OVERSPEED",
         severity: "warning",
-        message: `Speed ${data.speed_kmh} km/h exceeds limit of ${speedRule.speed_limit} km/h`,
-        metadata: { limit: speedRule.speed_limit },
+        message: zoneName
+          ? `Speed ${data.speed_kmh} km/h exceeds ${zoneName} zone limit of ${activeRule.speed_limit} km/h`
+          : `Speed ${data.speed_kmh} km/h exceeds limit of ${activeRule.speed_limit} km/h`,
+        metadata: { limit: activeRule.speed_limit, geofence_id: zoneRule?.geofence_id ?? null },
       });
     }
   }
@@ -318,7 +436,7 @@ serve(async (req) => {
     if (eventsError) console.error("[ingest] failed to insert device events", eventsError);
 
     // Critical events also surface as actionable alerts in the notification inbox
-    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM"];
+    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM", "POWER_CUT"];
     const criticalEvents = events.filter((e) => criticalTypes.includes(e.type));
     if (criticalEvents.length > 0) {
       const { error: alertsError } = await supabase.from("alerts").insert(

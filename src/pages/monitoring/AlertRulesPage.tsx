@@ -39,8 +39,13 @@ import { showError, showSuccess } from "@/utils/toast";
 import { cn } from "@/lib/utils";
 import type { AlertRule } from "@/types/database";
 
+interface AlertRuleRow extends AlertRule {
+  geofence: { name: string } | null;
+}
+
 const TYPE_LABELS: Record<string, string> = {
   OVERSPEED: "Speed limit exceeded",
+  IDLE: "Excessive idling",
   GEOFENCE_ENTER: "Enters geofence",
   GEOFENCE_EXIT: "Exits geofence",
   DEVICE_OFFLINE: "Device offline",
@@ -57,7 +62,7 @@ const SEVERITY_STYLES: Record<string, string> = {
 export default function AlertRulesPage() {
   const { currentOrg, currentRole, user } = useAuth();
 
-  const [rules, setRules] = useState<AlertRule[]>([]);
+  const [rules, setRules] = useState<AlertRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -73,7 +78,7 @@ export default function AlertRulesPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("alert_rules")
-      .select("*")
+      .select("*, geofence:geofences(name)")
       .eq("organization_id", currentOrg.id)
       .order("created_at", { ascending: false });
 
@@ -82,14 +87,14 @@ export default function AlertRulesPage() {
       showError(error.message);
       return;
     }
-    setRules((data ?? []) as unknown as AlertRule[]);
+    setRules((data ?? []) as unknown as AlertRuleRow[]);
   }, [currentOrg]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const toggleEnabled = async (rule: AlertRule) => {
+  const toggleEnabled = async (rule: AlertRuleRow) => {
     const { error } = await supabase
       .from("alert_rules")
       .update({ enabled: !rule.enabled })
@@ -198,6 +203,8 @@ export default function AlertRulesPage() {
                     <span className="text-sm text-muted-foreground">
                       {TYPE_LABELS[r.type] ?? r.type}
                       {r.type === "OVERSPEED" && r.speed_limit ? ` (${r.speed_limit} km/h)` : ""}
+                      {r.type === "IDLE" && r.idle_minutes ? ` (${r.idle_minutes} min)` : ""}
+                      {r.geofence?.name ? ` · ${r.geofence.name}` : ""}
                     </span>
                   </TableCell>
                   <TableCell>

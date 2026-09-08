@@ -64,6 +64,8 @@ const EVENT_ICONS: Record<DeviceEventType, typeof Activity> = {
   DOOR_OPEN: DoorOpen,
   DOOR_CLOSE: DoorClosed,
   ALARM: Siren,
+  POWER_CUT: PowerOff,
+  POWER_RESTORED: Power,
 };
 
 const EVENT_LABELS: Record<DeviceEventType, string> = {
@@ -88,6 +90,8 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   DOOR_OPEN: "Door opened",
   DOOR_CLOSE: "Door closed",
   ALARM: "Alarm triggered",
+  POWER_CUT: "External power lost",
+  POWER_RESTORED: "External power restored",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
