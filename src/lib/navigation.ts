@@ -61,7 +61,10 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Overview",
     icon: LayoutDashboard,
-    items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, implemented: true }],
+    items: [
+      { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, implemented: true },
+      { title: "Reports", href: "/reports", icon: BarChart3, implemented: true },
+    ],
   },
   {
     label: "Fleet",

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 import { Gauge, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,10 +37,19 @@ function toLocalInputValue(date: Date) {
 
 export default function PlaybackPage() {
   const { currentOrg } = useAuth();
+  const [searchParams] = useSearchParams();
   const [devices, setDevices] = useState<AssignedDevice[]>([]);
   const [deviceId, setDeviceId] = useState("");
-  const [from, setFrom] = useState(() => toLocalInputValue(new Date(Date.now() - 24 * 3600 * 1000)));
-  const [to, setTo] = useState(() => toLocalInputValue(new Date()));
+  const [from, setFrom] = useState(() => {
+    const param = searchParams.get("from");
+    if (param && !isNaN(new Date(param).getTime())) return toLocalInputValue(new Date(param));
+    return toLocalInputValue(new Date(Date.now() - 24 * 3600 * 1000));
+  });
+  const [to, setTo] = useState(() => {
+    const param = searchParams.get("to");
+    if (param && !isNaN(new Date(param).getTime())) return toLocalInputValue(new Date(param));
+    return toLocalInputValue(new Date());
+  });
 
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
