@@ -1,0 +1,1 @@
+CREATE POLICY "maintenance_select" ON public.maintenance_schedules AS PERMISSIVE FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

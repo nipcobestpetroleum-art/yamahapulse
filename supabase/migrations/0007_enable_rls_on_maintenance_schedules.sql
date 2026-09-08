@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_schedules ENABLE ROW LEVEL SECURITY;

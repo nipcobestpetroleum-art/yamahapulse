@@ -83,6 +83,30 @@ export const ALERT_RULE_DELETE_ROLES: RoleName[] = [
   "FLEET_MANAGER",
 ];
 
+export const TRIP_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+];
+
+export const TRIP_DELETE_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "FLEET_MANAGER"];
+
+export const MAINTENANCE_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "TECHNICIAN",
+];
+
+export const MAINTENANCE_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
 export function hasAnyRole(role: RoleName | null, allowed: RoleName[]): boolean {
   if (!role) return false;
   return allowed.includes(role);

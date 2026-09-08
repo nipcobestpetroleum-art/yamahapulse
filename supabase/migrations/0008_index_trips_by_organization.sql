@@ -1,0 +1,1 @@
+CREATE INDEX trips_org_idx ON public.trips USING btree (organization_id);

@@ -145,6 +145,44 @@ export interface Driver {
   vehicle?: { name: string; registration_number: string } | null;
 }
 
+export type TripStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface Trip {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  driver_id: string | null;
+  start_time: string;
+  end_time: string | null;
+  start_location: string | null;
+  end_location: string | null;
+  distance_km: number | null;
+  status: TripStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+  driver?: { name: string } | null;
+}
+
+export type MaintenanceStatus = "SCHEDULED" | "COMPLETED" | "OVERDUE" | "CANCELLED";
+
+export interface MaintenanceSchedule {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  service_type: string;
+  due_date: string | null;
+  due_odometer: number | null;
+  status: MaintenanceStatus;
+  completed_at: string | null;
+  cost: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
 export interface AlertRule {
   id: string;
   organization_id: string;

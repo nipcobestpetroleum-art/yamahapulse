@@ -1,0 +1,1 @@
+CREATE POLICY "trips_update" ON public.trips AS PERMISSIVE FOR UPDATE TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','DISPATCHER']));

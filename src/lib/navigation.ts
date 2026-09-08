@@ -70,7 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Vehicles", href: "/vehicles", icon: Car, implemented: true },
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
       { title: "Drivers", href: "/fleet/drivers", icon: Users, implemented: true },
-      { title: "Trips", href: "/fleet/trips", icon: Route },
+      { title: "Trips", href: "/fleet/trips", icon: Route, implemented: true },
       { title: "Routes", href: "/fleet/routes", icon: Navigation },
     ],
   },
@@ -115,7 +115,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Wrench,
     items: [
       { title: "Maintenance Dashboard", href: "/maintenance/dashboard", icon: Wrench },
-      { title: "Service Schedule", href: "/maintenance/schedule", icon: CalendarClock },
+      { title: "Service Schedule", href: "/maintenance/schedule", icon: CalendarClock, implemented: true },
       { title: "Vehicle Inspection", href: "/maintenance/inspection", icon: ClipboardCheck },
       { title: "Tires", href: "/maintenance/tires", icon: Disc3 },
       { title: "Documents", href: "/maintenance/documents", icon: FileText },

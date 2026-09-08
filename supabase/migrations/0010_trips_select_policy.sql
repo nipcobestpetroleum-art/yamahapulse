@@ -1,0 +1,1 @@
+CREATE POLICY "trips_select" ON public.trips AS PERMISSIVE FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

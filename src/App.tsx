@@ -13,6 +13,8 @@ import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
 import DriversPage from "./pages/fleet/DriversPage";
+import TripsPage from "./pages/fleet/TripsPage";
+import MaintenancePage from "./pages/maintenance/MaintenancePage";
 import GeofencesPage from "./pages/monitoring/GeofencesPage";
 import AlertsPage from "./pages/monitoring/AlertsPage";
 import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
@@ -65,12 +67,14 @@ const App = () => (
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />
+              <Route path="/fleet/trips" element={<TripsPage />} />
 
               {/* Phase 3 */}
               <Route path="/monitoring/geofences" element={<GeofencesPage />} />
               <Route path="/monitoring/alerts" element={<AlertsPage />} />
               <Route path="/monitoring/alert-rules" element={<AlertRulesPage />} />
               <Route path="/monitoring/playback" element={<PlaybackPage />} />
+              <Route path="/maintenance/schedule" element={<MaintenancePage />} />
 
               {/* Admin */}
               <Route path="/admin/users" element={<UsersPage />} />

@@ -1,0 +1,1 @@
+CREATE POLICY "maintenance_insert" ON public.maintenance_schedules AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','TECHNICIAN']));

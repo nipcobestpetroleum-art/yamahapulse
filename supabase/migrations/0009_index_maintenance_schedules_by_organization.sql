@@ -1,0 +1,1 @@
+CREATE INDEX maintenance_schedules_org_idx ON public.maintenance_schedules USING btree (organization_id);
