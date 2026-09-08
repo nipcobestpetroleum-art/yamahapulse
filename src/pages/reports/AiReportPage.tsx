@@ -6,6 +6,8 @@ import {
   BatteryCharging,
   BrainCircuit,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Compass,
   Car,
   CircleDot,
@@ -53,6 +55,7 @@ import { cn } from "@/lib/utils";
 import type { DeviceEvent, LatestPosition, Position, Trip } from "@/types/database";
 
 const ONLINE_WINDOW_MS = 10 * 60 * 1000;
+const RAW_PAGE_SIZE = 25;
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -110,7 +113,6 @@ interface VehicleRow {
 interface ReportData {
   device: DeviceRow;
   latest: LatestPosition | null;
-  log: Position[];
   vehicle: VehicleRow | null;
   openTrip: Trip | null;
   todayTrips: Trip[];
@@ -193,19 +195,13 @@ export default function AiReportPage() {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [deviceRes, latestRes, logRes, assignmentRes] = await Promise.all([
+    const [deviceRes, latestRes, assignmentRes] = await Promise.all([
       supabase
         .from("gps_devices")
         .select("id, imei, name, status, last_seen_at, device_model:device_models(manufacturer, model)")
         .eq("id", deviceId)
         .maybeSingle(),
       supabase.from("latest_positions").select("*").eq("device_id", deviceId).maybeSingle(),
-      supabase
-        .from("positions")
-        .select("*")
-        .eq("device_id", deviceId)
-        .order("recorded_at", { ascending: false })
-        .limit(60),
       supabase
         .from("device_assignments")
         .select("vehicle:vehicles(id, name, odometer)")
@@ -214,7 +210,7 @@ export default function AiReportPage() {
         .maybeSingle(),
     ]);
 
-    const error = deviceRes.error ?? latestRes.error ?? logRes.error ?? assignmentRes.error;
+    const error = deviceRes.error ?? latestRes.error ?? assignmentRes.error;
     if (error) {
       setLoading(false);
       showError(error.message);
@@ -265,7 +261,6 @@ export default function AiReportPage() {
     setData({
       device,
       latest: (latestRes.data ?? null) as unknown as LatestPosition | null,
-      log: (logRes.data ?? []) as unknown as Position[],
       vehicle,
       openTrip: (openTripRes.data ?? null) as unknown as Trip | null,
       todayTrips: (todayTripsRes.data ?? []) as unknown as Trip[],
@@ -280,6 +275,42 @@ export default function AiReportPage() {
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, [load]);
+
+  /* ---------- Paginated raw telemetry (independent of the overview refresh) ---------- */
+  const [rawPage, setRawPage] = useState(0);
+  const [rawLog, setRawLog] = useState<Position[]>([]);
+  const [rawTotal, setRawTotal] = useState(0);
+  const [rawLoading, setRawLoading] = useState(false);
+
+  useEffect(() => {
+    setRawPage(0);
+  }, [deviceId]);
+
+  const loadRawPage = useCallback(async () => {
+    if (!deviceId) return;
+    setRawLoading(true);
+    const from = rawPage * RAW_PAGE_SIZE;
+    const to = from + RAW_PAGE_SIZE - 1;
+    const { data: rows, count, error } = await supabase
+      .from("positions")
+      .select("*", { count: "exact" })
+      .eq("device_id", deviceId)
+      .order("recorded_at", { ascending: false })
+      .range(from, to);
+    setRawLoading(false);
+    if (error) {
+      showError(error.message);
+      return;
+    }
+    setRawLog((rows ?? []) as unknown as Position[]);
+    setRawTotal(count ?? 0);
+  }, [deviceId, rawPage]);
+
+  useEffect(() => {
+    loadRawPage();
+  }, [loadRawPage]);
+
+  const rawPageCount = Math.max(1, Math.ceil(rawTotal / RAW_PAGE_SIZE));
 
   const isOnline =
     !!data?.device.last_seen_at &&
@@ -442,7 +473,7 @@ export default function AiReportPage() {
     return items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [data]);
 
-  const locationAddress = data?.latest ? data.log[0]?.address ?? null : null;
+  const locationAddress = data?.latest?.address ?? null;
 
   const gpsQuality = data?.latest
     ? (dopQuality(data.latest.hdop) ?? dopQuality(data.latest.pdop))
@@ -471,7 +502,10 @@ export default function AiReportPage() {
               variant="outline"
               size="sm"
               className="border-border bg-card/60"
-              onClick={load}
+              onClick={() => {
+                load();
+                loadRawPage();
+              }}
               disabled={loading || !deviceId}
             >
               <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
@@ -964,10 +998,38 @@ export default function AiReportPage() {
               </div>
 
               <Card className="border-border bg-card/60">
-                <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4">
+                <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2 pt-4">
                   <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <Compass className="h-4 w-4 text-primary" /> Raw telemetry log — last {data.log.length} records
+                    <Compass className="h-4 w-4 text-primary" /> Raw telemetry log
+                    {rawTotal > 0 && (
+                      <span className="normal-case text-muted-foreground/70">
+                        · {rawTotal.toLocaleString()} records
+                      </span>
+                    )}
                   </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 border-border bg-card/60"
+                      disabled={rawLoading || rawPage <= 0}
+                      onClick={() => setRawPage((p) => Math.max(0, p - 1))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Page {rawPage + 1} of {rawPageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 border-border bg-card/60"
+                      disabled={rawLoading || rawPage >= rawPageCount - 1}
+                      onClick={() => setRawPage((p) => Math.min(rawPageCount - 1, p + 1))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -991,14 +1053,20 @@ export default function AiReportPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data.log.length === 0 ? (
+                        {rawLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={14} className="py-8 text-center text-sm text-muted-foreground">
+                              Loading…
+                            </TableCell>
+                          </TableRow>
+                        ) : rawLog.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={14} className="py-8 text-center text-sm text-muted-foreground">
                               No telemetry records yet.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          data.log.map((p) => (
+                          rawLog.map((p) => (
                             <TableRow key={p.id}>
                               <TableCell className="whitespace-nowrap pl-4 text-xs">
                                 {format(new Date(p.recorded_at), "HH:mm:ss")}
