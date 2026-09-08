@@ -31,6 +31,7 @@ import {
   Receipt,
   Route,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Signal,
   Siren,
