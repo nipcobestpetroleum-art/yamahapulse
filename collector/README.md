@@ -140,6 +140,7 @@ sends the Codec 12 `setdigout 1` / `setdigout 0` command down the open socket
     SIM_PANIC=1 node simulate.js      # panic/SOS pressed
     SIM_CRASH=1 node simulate.js      # crash event
     SIM_POWER_CUT=1 node simulate.js  # running on backup battery
+    SIM_IGNITION=0 node simulate.js   # ignition off (closes an auto-detected trip)
 
 ---
 

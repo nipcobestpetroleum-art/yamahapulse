@@ -175,6 +175,8 @@ export interface Trip {
   start_location: string | null;
   end_location: string | null;
   distance_km: number | null;
+  start_odometer: number | null;
+  auto_generated: boolean;
   status: TripStatus;
   notes: string | null;
   created_at: string;

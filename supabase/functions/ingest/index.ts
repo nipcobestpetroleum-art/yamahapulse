@@ -554,6 +554,23 @@ serve(async (req) => {
       } catch (err) {
         console.error("[ingest] maintenance trigger check failed", err);
       }
+
+      // Automatic trip detection from ignition transitions
+      try {
+        await syncAutoTrip({
+          supabase,
+          orgId,
+          vehicleId,
+          ignition: data.ignition,
+          previousIgnition: previousPosition?.ignition ?? null,
+          recordedAt,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          currentOdometer: newOdometer,
+        });
+      } catch (err) {
+        console.error("[ingest] auto trip sync failed", err);
+      }
     }
 
     // iButton driver identification: reassign the active driver on this vehicle
@@ -610,6 +627,107 @@ serve(async (req) => {
     command: command?.command ?? null,
   });
 });
+
+/**
+ * Automatic trip detection, driven by ignition transitions:
+ *  - ignition ON (rising edge)  -> open an IN_PROGRESS trip (defensively closing any
+ *    stale one left open by a missed ignition-off, e.g. after signal loss)
+ *  - ignition OFF (falling edge) -> close the open trip with end time/location and
+ *    distance derived from the vehicle's odometer delta
+ *  - trips open longer than 24 h (device kept reporting with ignition on) are split
+ */
+async function syncAutoTrip(args: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  orgId: string;
+  vehicleId: string;
+  ignition: boolean | null;
+  previousIgnition: boolean | null;
+  recordedAt: Date;
+  latitude: number;
+  longitude: number;
+  currentOdometer: number;
+}) {
+  const { supabase, orgId, vehicleId, ignition, previousIgnition, recordedAt, latitude, longitude, currentOdometer } =
+    args;
+
+  if (ignition === null) return;
+
+  const locationLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+
+  const fetchOpenTrip = () =>
+    supabase
+      .from("trips")
+      .select("id, start_time, start_odometer")
+      .eq("vehicle_id", vehicleId)
+      .eq("status", "IN_PROGRESS")
+      .limit(1)
+      .maybeSingle();
+
+  const closeTrip = (tripId: string, startOdometer: number | null) => {
+    const distance =
+      startOdometer !== null && startOdometer !== undefined && currentOdometer >= startOdometer
+        ? Number((currentOdometer - startOdometer).toFixed(2))
+        : null;
+    return supabase
+      .from("trips")
+      .update({
+        end_time: recordedAt.toISOString(),
+        end_location: locationLabel,
+        distance_km: distance,
+        status: "COMPLETED",
+      })
+      .eq("id", tripId);
+  };
+
+  const openTrip = async () => {
+    const { data: driver } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("vehicle_id", vehicleId)
+      .limit(1)
+      .maybeSingle();
+
+    await supabase.from("trips").insert({
+      organization_id: orgId,
+      vehicle_id: vehicleId,
+      driver_id: driver?.id ?? null,
+      start_time: recordedAt.toISOString(),
+      start_location: locationLabel,
+      start_odometer: currentOdometer,
+      distance_km: 0,
+      status: "IN_PROGRESS",
+      auto_generated: true,
+      notes: "Auto-detected from GPS telemetry (ignition)",
+    });
+  };
+
+  const rising = ignition === true && previousIgnition !== true;
+  const falling = ignition === false && previousIgnition === true;
+
+  if (falling) {
+    const { data: open } = await fetchOpenTrip();
+    if (open) await closeTrip(open.id, open.start_odometer);
+    return;
+  }
+
+  if (rising) {
+    // Close any trip left open by a missed ignition-off before starting a fresh one.
+    const { data: open } = await fetchOpenTrip();
+    if (open) await closeTrip(open.id, open.start_odometer);
+    await openTrip();
+    return;
+  }
+
+  if (ignition === true) {
+    // Split marathon sessions: a trip open for over 24 h is closed and a new one starts.
+    const { data: open } = await fetchOpenTrip();
+    if (open && recordedAt.getTime() - new Date(open.start_time).getTime() > 24 * 3_600_000) {
+      await closeTrip(open.id, open.start_odometer);
+      await openTrip();
+    }
+  }
+}
 
 async function checkMaintenanceTriggers(
   // deno-lint-ignore no-explicit-any

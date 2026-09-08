@@ -6,6 +6,7 @@
 //
 // Optional env:
 //   COLLECTOR_HOST (default 127.0.0.1), COLLECTOR_PORT (default 5027)
+//   SIM_IGNITION=1|0 ignition state — run with 1 to open an auto trip, then 0 to close it
 //   SIM_PANIC=1      press the panic/SOS button (DIN2)
 //   SIM_CRASH=1      report a crash event (IO 247)
 //   SIM_POWER_CUT=1  external voltage drops to backup battery level
@@ -16,6 +17,7 @@ const imei = process.argv[2] || "353691842796392";
 const HOST = process.env.COLLECTOR_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.COLLECTOR_PORT || "5027", 10);
 
+const IGNITION = process.env.SIM_IGNITION !== "0"; // default ON
 const PANIC = process.env.SIM_PANIC === "1";
 const CRASH = process.env.SIM_CRASH === "1";
 const POWER_CUT = process.env.SIM_POWER_CUT === "1";
@@ -34,7 +36,7 @@ function crc16(buf) {
 function buildRecord() {
   // 1-byte IOs: ignition (239), panic on DIN2, door on DIN3, battery % (113)
   const oneByte = [
-    [239, 1],
+    [239, IGNITION ? 1 : 0],
     [2, PANIC ? 1 : 0],
     [3, 0],
     [113, POWER_CUT ? 21 : 92],
@@ -127,7 +129,12 @@ function codec12Response(text) {
   return packet;
 }
 
-const flags = [PANIC && "panic", CRASH && "crash", POWER_CUT && "power-cut"].filter(Boolean);
+const flags = [
+  IGNITION ? "ignition-on" : "ignition-off",
+  PANIC && "panic",
+  CRASH && "crash",
+  POWER_CUT && "power-cut",
+].filter(Boolean);
 
 const socket = net.connect(PORT, HOST, () => {
   console.log(`[simulate] connected to ${HOST}:${PORT}`);

@@ -1,0 +1,1 @@
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN NOT NULL DEFAULT false;

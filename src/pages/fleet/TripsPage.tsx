@@ -412,9 +412,19 @@ export default function TripsPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[t.status])}>
-                        {STATUS_LABELS[t.status]}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[t.status])}>
+                          {STATUS_LABELS[t.status]}
+                        </Badge>
+                        {t.auto_generated && (
+                          <Badge
+                            variant="outline"
+                            className="hidden border-indigo-500/25 bg-indigo-500/10 font-medium text-indigo-400 sm:inline-flex"
+                          >
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
                       <span className="text-sm text-muted-foreground">
@@ -485,6 +495,14 @@ export default function TripsPage() {
                   {selected.driver?.name && (
                     <Badge variant="outline" className="border-border font-medium">
                       {selected.driver.name}
+                    </Badge>
+                  )}
+                  {selected.auto_generated && (
+                    <Badge
+                      variant="outline"
+                      className="border-indigo-500/25 bg-indigo-500/10 font-medium text-indigo-400"
+                    >
+                      Auto-detected
                     </Badge>
                   )}
                 </div>

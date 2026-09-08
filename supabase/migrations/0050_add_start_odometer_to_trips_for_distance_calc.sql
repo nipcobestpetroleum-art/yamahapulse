@@ -1,0 +1,1 @@
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS start_odometer NUMERIC(12,2);
