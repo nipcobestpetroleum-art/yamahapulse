@@ -21,6 +21,15 @@ import AlertsPage from "./pages/monitoring/AlertsPage";
 import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
 import PlaybackPage from "./pages/monitoring/PlaybackPage";
 import EventsPage from "./pages/monitoring/EventsPage";
+import FuelDashboardPage from "./pages/fuel/FuelDashboardPage";
+import FuelSensorsPage from "./pages/fuel/FuelSensorsPage";
+import FuelCalibrationPage from "./pages/fuel/FuelCalibrationPage";
+import FuelTransactionsPage from "./pages/fuel/FuelTransactionsPage";
+import FuelConsumptionPage from "./pages/fuel/FuelConsumptionPage";
+import TheftDetectionPage from "./pages/fuel/TheftDetectionPage";
+import JobsPage from "./pages/operations/JobsPage";
+import DispatchPage from "./pages/operations/DispatchPage";
+import DriverBehaviourPage from "./pages/operations/DriverBehaviourPage";
 import UsersPage from "./pages/admin/UsersPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
@@ -80,6 +89,19 @@ const App = () => (
               <Route path="/monitoring/playback" element={<PlaybackPage />} />
               <Route path="/monitoring/events" element={<EventsPage />} />
               <Route path="/maintenance/schedule" element={<MaintenancePage />} />
+
+              {/* Phase 4 */}
+              <Route path="/fuel/dashboard" element={<FuelDashboardPage />} />
+              <Route path="/fuel/sensors" element={<FuelSensorsPage />} />
+              <Route path="/fuel/calibration" element={<FuelCalibrationPage />} />
+              <Route path="/fuel/transactions" element={<FuelTransactionsPage />} />
+              <Route path="/fuel/consumption" element={<FuelConsumptionPage />} />
+              <Route path="/fuel/theft" element={<TheftDetectionPage />} />
+              <Route path="/operations/jobs" element={<JobsPage />} />
+              <Route path="/operations/dispatch" element={<DispatchPage />} />
+              <Route path="/operations/trips" element={<TripsPage />} />
+              <Route path="/operations/route-planning" element={<RoutesPage />} />
+              <Route path="/operations/driver-behaviour" element={<DriverBehaviourPage />} />
 
               {/* Admin */}
               <Route path="/admin/users" element={<UsersPage />} />

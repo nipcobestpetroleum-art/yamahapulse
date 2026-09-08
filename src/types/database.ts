@@ -265,6 +265,65 @@ export interface FleetRoute {
   updated_at: string;
 }
 
+export type FuelSensorType = "ANALOG" | "DIGITAL" | "CAPACITIVE" | "ULTRASONIC";
+
+export interface FuelCalibrationPoint {
+  raw: number;
+  liters: number;
+}
+
+export interface FuelSensor {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  device_id: string | null;
+  sensor_type: FuelSensorType;
+  tank_capacity_liters: number | null;
+  calibration_points: FuelCalibrationPoint[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export type FuelTransactionType = "REFUEL" | "DRAIN" | "THEFT";
+
+export interface FuelTransaction {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  sensor_id: string | null;
+  type: FuelTransactionType;
+  liters: number;
+  cost: number | null;
+  odometer: number | null;
+  location: string | null;
+  recorded_at: string;
+  notes: string | null;
+  reviewed: boolean;
+  created_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export type JobStatus = "PENDING" | "DISPATCHED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface Job {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  vehicle_id: string | null;
+  driver_id: string | null;
+  status: JobStatus;
+  scheduled_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+  driver?: { name: string } | null;
+}
+
 export type DeviceEventType =
   | "IGNITION_ON"
   | "IGNITION_OFF"

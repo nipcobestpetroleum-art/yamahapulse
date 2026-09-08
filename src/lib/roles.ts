@@ -117,6 +117,45 @@ export const MAINTENANCE_DELETE_ROLES: RoleName[] = [
   "FLEET_MANAGER",
 ];
 
+export const FUEL_SENSOR_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "TECHNICIAN",
+];
+
+export const FUEL_SENSOR_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
+export const FUEL_TRANSACTION_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+  "TECHNICIAN",
+];
+
+export const FUEL_TRANSACTION_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
+export const JOB_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+];
+
+export const JOB_DELETE_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "FLEET_MANAGER"];
+
 export function hasAnyRole(role: RoleName | null, allowed: RoleName[]): boolean {
   if (!role) return false;
   return allowed.includes(role);
