@@ -80,7 +80,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Map,
     items: [
       { title: "Live Map", href: "/monitoring/live", icon: Map },
-      { title: "Playback", href: "/monitoring/playback", icon: Play },
+      { title: "Playback", href: "/monitoring/playback", icon: Play, implemented: true },
       { title: "Geofences", href: "/monitoring/geofences", icon: MapPin, implemented: true },
       { title: "Alerts", href: "/monitoring/alerts", icon: Bell, implemented: true },
       { title: "Alert Rules", href: "/monitoring/alert-rules", icon: Siren, implemented: true },
@@ -159,10 +159,10 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Settings,
     roles: ADMIN_ROLES,
     items: [
-      { title: "Users", href: "/admin/users", icon: Users },
+      { title: "Users", href: "/admin/users", icon: Users, implemented: true },
       { title: "Roles", href: "/admin/roles", icon: ShieldCheck },
-      { title: "Organization", href: "/admin/organization", icon: Landmark },
-      { title: "Branches", href: "/admin/branches", icon: MapPin },
+      { title: "Organization", href: "/admin/organization", icon: Landmark, implemented: true },
+      { title: "Branches", href: "/admin/branches", icon: MapPin, implemented: true },
       { title: "API Keys", href: "/admin/api-keys", icon: KeyRound },
       { title: "Integrations", href: "/admin/integrations", icon: Link2 },
       { title: "Settings", href: "/admin/settings", icon: Settings },

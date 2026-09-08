@@ -16,6 +16,10 @@ import DriversPage from "./pages/fleet/DriversPage";
 import GeofencesPage from "./pages/monitoring/GeofencesPage";
 import AlertsPage from "./pages/monitoring/AlertsPage";
 import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
+import PlaybackPage from "./pages/monitoring/PlaybackPage";
+import UsersPage from "./pages/admin/UsersPage";
+import OrganizationPage from "./pages/admin/OrganizationPage";
+import BranchesPage from "./pages/admin/BranchesPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +70,12 @@ const App = () => (
               <Route path="/monitoring/geofences" element={<GeofencesPage />} />
               <Route path="/monitoring/alerts" element={<AlertsPage />} />
               <Route path="/monitoring/alert-rules" element={<AlertRulesPage />} />
+              <Route path="/monitoring/playback" element={<PlaybackPage />} />
+
+              {/* Admin */}
+              <Route path="/admin/users" element={<UsersPage />} />
+              <Route path="/admin/organization" element={<OrganizationPage />} />
+              <Route path="/admin/branches" element={<BranchesPage />} />
 
               {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />
