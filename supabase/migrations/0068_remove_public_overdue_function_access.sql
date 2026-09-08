@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.refresh_overdue_maintenance(UUID) FROM PUBLIC;

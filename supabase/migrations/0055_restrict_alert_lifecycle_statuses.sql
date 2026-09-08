@@ -1,0 +1,1 @@
+ALTER TABLE public.alerts ADD CONSTRAINT alerts_status_check CHECK (status IN ('OPEN', 'ACKNOWLEDGED', 'RESOLVED'));

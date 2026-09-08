@@ -1,0 +1,1 @@
+CREATE POLICY alerts_select ON public.alerts FOR SELECT TO authenticated USING (organization_id IN (SELECT public.current_user_org_ids()));

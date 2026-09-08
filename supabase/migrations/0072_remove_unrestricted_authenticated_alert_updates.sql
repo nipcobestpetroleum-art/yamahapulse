@@ -1,0 +1,1 @@
+REVOKE UPDATE ON TABLE public.alerts FROM authenticated;

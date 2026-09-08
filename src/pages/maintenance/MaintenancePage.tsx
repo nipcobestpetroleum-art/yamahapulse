@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { format, isPast } from "date-fns";
+import { format } from "date-fns";
 import { MoreHorizontal, Pencil, Plus, Trash2, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +78,18 @@ export default function MaintenancePage() {
   const load = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
+
+    // Persist calendar-, odometer-, and engine-hour-based overdue statuses before reading.
+    // The database function only accepts organizations the caller belongs to.
+    const { error: refreshError } = await supabase.rpc("refresh_overdue_maintenance", {
+      p_organization_id: currentOrg.id,
+    });
+    if (refreshError) {
+      setLoading(false);
+      showError(refreshError.message);
+      return;
+    }
+
     let query = supabase
       .from("maintenance_schedules")
       .select("*, vehicle:vehicles(name, registration_number)")
@@ -93,15 +105,7 @@ export default function MaintenancePage() {
       return;
     }
 
-    const rows = (data ?? []) as unknown as MaintenanceSchedule[];
-    // Surface stale "scheduled" items whose due date has passed as overdue in the UI.
-    setRecords(
-      rows.map((r) =>
-        r.status === "SCHEDULED" && r.due_date && isPast(new Date(r.due_date))
-          ? { ...r, status: "OVERDUE" as MaintenanceStatus }
-          : r,
-      ),
-    );
+    setRecords((data ?? []) as unknown as MaintenanceSchedule[]);
   }, [currentOrg, statusFilter]);
 
   useEffect(() => {

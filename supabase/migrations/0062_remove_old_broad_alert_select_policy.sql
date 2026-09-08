@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS alerts_select ON public.alerts;

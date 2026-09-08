@@ -1,0 +1,1 @@
+GRANT UPDATE (read_at, status, acknowledged_at, acknowledged_by, resolved_at, resolved_by, resolution_notes) ON TABLE public.alerts TO authenticated;

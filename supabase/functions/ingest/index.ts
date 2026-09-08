@@ -599,6 +599,7 @@ serve(async (req) => {
       }
 
       try {
+        await markMaintenanceOverdue(supabase, orgId, vehicleId, newOdometer, newEngineHours);
         await checkMaintenanceTriggers(supabase, orgId, vehicleId, newOdometer, newEngineHours);
       } catch (err) {
         console.error("[ingest] maintenance trigger check failed", err);
@@ -778,6 +779,32 @@ async function syncAutoTrip(args: {
   }
 }
 
+async function markMaintenanceOverdue(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  orgId: string,
+  vehicleId: string,
+  odometer: number,
+  engineHours: number,
+) {
+  const overdueUpdate = { status: "OVERDUE", updated_at: new Date().toISOString() };
+  const base = () =>
+    supabase
+      .from("maintenance_schedules")
+      .update(overdueUpdate)
+      .eq("organization_id", orgId)
+      .eq("vehicle_id", vehicleId)
+      .eq("status", "SCHEDULED");
+
+  const results = await Promise.all([
+    base().lt("due_date", new Date().toISOString().slice(0, 10)),
+    base().lte("due_odometer", odometer),
+    base().lte("due_engine_hours", engineHours),
+  ]);
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+}
+
 async function checkMaintenanceTriggers(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -802,7 +829,7 @@ async function checkMaintenanceTriggers(
       .select("id")
       .eq("vehicle_id", vehicleId)
       .eq("service_type", interval.service_type)
-      .eq("status", "SCHEDULED")
+      .in("status", ["SCHEDULED", "OVERDUE"])
       .limit(1)
       .maybeSingle();
     if (openSchedule) continue;

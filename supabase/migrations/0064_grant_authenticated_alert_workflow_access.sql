@@ -1,0 +1,1 @@
+GRANT SELECT, UPDATE ON TABLE public.alerts TO authenticated;

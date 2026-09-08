@@ -236,6 +236,8 @@ export interface AlertRule {
   updated_at: string;
 }
 
+export type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+
 export interface Alert {
   id: string;
   organization_id: string;
@@ -248,6 +250,12 @@ export interface Alert {
   latitude: number | null;
   longitude: number | null;
   read_at: string | null;
+  status: AlertStatus;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_notes: string | null;
   created_at: string;
 }
 

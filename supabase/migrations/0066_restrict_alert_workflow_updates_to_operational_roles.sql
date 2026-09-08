@@ -1,0 +1,1 @@
+CREATE POLICY alerts_update ON public.alerts FOR UPDATE TO authenticated USING (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','DISPATCHER'])) WITH CHECK (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','DISPATCHER']));

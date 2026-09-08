@@ -83,6 +83,14 @@ export const ALERT_RULE_DELETE_ROLES: RoleName[] = [
   "FLEET_MANAGER",
 ];
 
+export const ALERT_WORKFLOW_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+];
+
 export const TRIP_WRITE_ROLES: RoleName[] = [
   "SUPER_ADMIN",
   "ORGANIZATION_ADMIN",

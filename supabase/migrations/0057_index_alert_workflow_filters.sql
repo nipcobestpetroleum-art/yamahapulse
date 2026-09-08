@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS alerts_org_status_time_idx ON public.alerts (organization_id, status, created_at DESC);

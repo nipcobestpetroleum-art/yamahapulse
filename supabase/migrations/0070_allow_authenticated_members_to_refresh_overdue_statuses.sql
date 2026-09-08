@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.refresh_overdue_maintenance(UUID) TO authenticated;

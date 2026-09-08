@@ -1,0 +1,1 @@
+ALTER TABLE public.alerts ADD CONSTRAINT alerts_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
