@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_intervals ADD CONSTRAINT maintenance_intervals_has_interval CHECK (interval_km IS NOT NULL OR interval_days IS NOT NULL OR interval_hours IS NOT NULL);

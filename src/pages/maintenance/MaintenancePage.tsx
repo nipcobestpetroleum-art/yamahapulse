@@ -234,6 +234,7 @@ export default function MaintenancePage() {
                     <span className="text-sm text-muted-foreground">
                       {r.due_date ? format(new Date(r.due_date), "dd MMM yyyy") : "—"}
                       {r.due_odometer ? ` · ${r.due_odometer} km` : ""}
+                      {r.due_engine_hours ? ` · ${r.due_engine_hours} eng hrs` : ""}
                     </span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">

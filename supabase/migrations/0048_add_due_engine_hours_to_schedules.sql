@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_schedules ADD COLUMN IF NOT EXISTS due_engine_hours NUMERIC(12,2);

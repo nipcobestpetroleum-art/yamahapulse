@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_intervals DROP CONSTRAINT IF EXISTS maintenance_intervals_has_interval;

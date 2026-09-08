@@ -59,6 +59,7 @@ export function MaintenanceFormDialog({ open, onOpenChange, record, onSaved }: P
   const [serviceType, setServiceType] = useState("Oil change");
   const [dueDate, setDueDate] = useState("");
   const [dueOdometer, setDueOdometer] = useState("");
+  const [dueEngineHours, setDueEngineHours] = useState("");
   const [status, setStatus] = useState<MaintenanceStatus>("SCHEDULED");
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState("");
@@ -76,6 +77,7 @@ export function MaintenanceFormDialog({ open, onOpenChange, record, onSaved }: P
     setServiceType(record?.service_type ?? "Oil change");
     setDueDate(record?.due_date ?? "");
     setDueOdometer(record?.due_odometer?.toString() ?? "");
+    setDueEngineHours(record?.due_engine_hours?.toString() ?? "");
     setStatus(record?.status ?? "SCHEDULED");
     setCost(record?.cost?.toString() ?? "");
     setNotes(record?.notes ?? "");
@@ -91,6 +93,7 @@ export function MaintenanceFormDialog({ open, onOpenChange, record, onSaved }: P
       service_type: serviceType,
       due_date: dueDate || null,
       due_odometer: dueOdometer ? parseFloat(dueOdometer) : null,
+      due_engine_hours: dueEngineHours ? parseFloat(dueEngineHours) : null,
       status,
       completed_at: status === "COMPLETED" ? new Date().toISOString() : record?.completed_at ?? null,
       cost: cost ? parseFloat(cost) : null,
@@ -180,6 +183,16 @@ export function MaintenanceFormDialog({ open, onOpenChange, record, onSaved }: P
                 min="0"
                 value={dueOdometer}
                 onChange={(e) => setDueOdometer(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ms-hours">Due engine hours</Label>
+              <Input
+                id="ms-hours"
+                type="number"
+                min="0"
+                value={dueEngineHours}
+                onChange={(e) => setDueEngineHours(e.target.value)}
               />
             </div>
             <div className="space-y-2">

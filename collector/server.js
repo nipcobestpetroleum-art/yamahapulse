@@ -1,4 +1,4 @@
-// YamahaPulse Teltonika collector (FMB920, Codec 8 / 8E)
+// YamahaPulse Teltonika collector (FMB920, Codec 8 / 8E + Codec 12 commands)
 // Zero dependencies — requires Node.js 18 or newer.
 //
 //   node server.js
@@ -13,6 +13,37 @@ const PORT = parseInt(process.env.COLLECTOR_PORT || "5027", 10);
 const INGEST_URL =
   process.env.INGEST_URL ||
   "https://glwinxaanstczuubxqqg.supabase.co/functions/v1/ingest";
+
+// Teltonika AVL IO IDs used by the FMB920 (see collector/README.md for the full map).
+const IO = {
+  DIN1: 1, // Digital Input 1 (ignition fallback)
+  DIN2: 2, // Digital Input 2 (panic/SOS button)
+  DIN3: 3, // Digital Input 3 (door sensor)
+  IBUTTON: 24, // 8-byte 1-Wire driver key
+  TEMP1: 70, // 1-Wire Temperature 1 (0.1 °C units)
+  EXT_VOLTAGE: 66, // External voltage, mV
+  DOUT1: 72, // Digital Output 1 (immobilizer relay)
+  BATTERY: 113, // Backup battery level, %
+  MOVEMENT: 240,
+  ALARM: 236,
+  IGNITION: 239,
+  TOWING: 246,
+  CRASH: 247,
+  GREEN_TYPE: 248, // 1 = harsh accel, 2 = harsh brake, 3 = harsh corner
+  GREEN_VALUE: 249, // G-force in mg
+  JAMMING: 250,
+  ODOMETER: 199, // Total odometer, meters
+};
+
+// Ingest returns a pending remote command; translate it to a GSM command for the device.
+const ENGINE_COMMANDS = {
+  ENGINE_CUT: "setdigout 1", // energize immobilizer relay on Output 1
+  ENGINE_RESUME: "setdigout 0", // release immobilizer relay
+};
+
+// External power is considered present above ~6 V (vehicle installs run 12/24 V;
+// below that the tracker is running on its backup battery).
+const EXT_POWER_MV_THRESHOLD = 6000;
 
 const log = (...args) => console.log("[collector]", ...args);
 
@@ -111,6 +142,13 @@ function parseRecord(r, codecId) {
     }
   }
 
+  const bool = (id) => (io.has(id) ? io.get(id) === 1 : null);
+  const extVoltageMv = io.has(IO.EXT_VOLTAGE) ? io.get(IO.EXT_VOLTAGE) : null;
+  const odometerM = io.has(IO.ODOMETER) ? io.get(IO.ODOMETER) : null;
+  const tempRaw = io.has(IO.TEMP1) ? io.get(IO.TEMP1) : null; // 0.1 °C units
+  const ibuttonRaw = io.has(IO.IBUTTON) ? io.get(IO.IBUTTON) : null;
+  const greenType = io.has(IO.GREEN_TYPE) ? io.get(IO.GREEN_TYPE) : null;
+
   return {
     timestamp: new Date(timestampMs).toISOString(),
     lat,
@@ -118,8 +156,27 @@ function parseRecord(r, codecId) {
     altitude,
     angle,
     speedKmh,
-    ignition: io.has(239) ? io.get(239) === 1 : null, // Teltonika IO 239 = ignition
-    batteryLevel: io.has(113) ? io.get(113) : null, // IO 113 = battery level %
+    ignition: io.has(IO.IGNITION) ? io.get(IO.IGNITION) === 1 : bool(IO.DIN1),
+    batteryLevel: io.has(IO.BATTERY) ? io.get(IO.BATTERY) : null,
+    panic: bool(IO.DIN2),
+    door: bool(IO.DIN3),
+    movement: bool(IO.MOVEMENT),
+    alarm: bool(IO.ALARM),
+    towing: bool(IO.TOWING),
+    crash: bool(IO.CRASH),
+    jamming: bool(IO.JAMMING),
+    harshAccel: greenType === 1,
+    harshBrake: greenType === 2,
+    harshCorner: greenType === 3,
+    gforce: io.has(IO.GREEN_VALUE) ? Number((io.get(IO.GREEN_VALUE) / 1000).toFixed(2)) : null,
+    externalPower: extVoltageMv !== null ? extVoltageMv >= EXT_POWER_MV_THRESHOLD : null,
+    extVoltageMv,
+    odometerKm: odometerM !== null ? Number((odometerM / 1000).toFixed(2)) : null,
+    temperature: tempRaw !== null ? Number((tempRaw / 10).toFixed(1)) : null,
+    ibutton:
+      ibuttonRaw !== null && ibuttonRaw !== undefined
+        ? ibuttonRaw.toString(16).padStart(16, "0")
+        : null,
   };
 }
 
@@ -152,6 +209,22 @@ function parseAvlPacket(packet) {
   return records;
 }
 
+// Codec 12 command packet, e.g. for `setdigout 1` (immobilizer relay control).
+function codec12CommandPacket(cmd) {
+  const body = Buffer.concat([
+    Buffer.from([0x0c, 0x05, cmd.length]),
+    Buffer.from(cmd, "ascii"),
+    Buffer.from([0x01]), // number of commands
+  ]);
+  const packet = Buffer.alloc(8 + body.length + 4);
+  packet.writeUInt32BE(0, 0); // preamble
+  packet.writeUInt32BE(body.length, 4);
+  body.copy(packet, 8);
+  packet.writeUInt16BE(0, 8 + body.length); // CRC padding bytes
+  packet.writeUInt16BE(crc16(body), 8 + body.length + 2);
+  return packet;
+}
+
 async function forwardToIngest(imei, rec) {
   const payload = {
     imei,
@@ -161,9 +234,24 @@ async function forwardToIngest(imei, rec) {
     speed_kmh: rec.speedKmh,
     course: rec.angle,
     alt: rec.altitude,
-    ignition: rec.ignition,
-    battery: rec.batteryLevel,
   };
+  if (rec.ignition !== null) payload.ignition = rec.ignition;
+  if (rec.batteryLevel !== null) payload.battery = rec.batteryLevel;
+  if (rec.panic !== null) payload.panic = rec.panic;
+  if (rec.door !== null) payload.door = rec.door;
+  if (rec.movement !== null) payload.movement = rec.movement;
+  if (rec.alarm !== null) payload.alarm = rec.alarm;
+  if (rec.towing !== null) payload.towing = rec.towing;
+  if (rec.crash !== null) payload.crash = rec.crash;
+  if (rec.jamming !== null) payload.jamming = rec.jamming;
+  if (rec.harshAccel) payload.harsh_accel = true;
+  if (rec.harshBrake) payload.harsh_brake = true;
+  if (rec.harshCorner) payload.harsh_corner = true;
+  if (rec.gforce !== null) payload.gforce = rec.gforce;
+  if (rec.externalPower !== null) payload.external_power = rec.externalPower;
+  if (rec.odometerKm !== null) payload.odometer_km = rec.odometerKm;
+  if (rec.temperature !== null) payload.temperature = rec.temperature;
+  if (rec.ibutton) payload.ibutton = rec.ibutton;
 
   const res = await fetch(INGEST_URL, {
     method: "POST",
@@ -173,8 +261,13 @@ async function forwardToIngest(imei, rec) {
   const text = await res.text();
   if (!res.ok) {
     log(`ingest rejected ${imei}: HTTP ${res.status} ${text}`);
-  } else {
-    log(`imei=${imei} lat=${rec.lat} lon=${rec.lon} speed=${rec.speedKmh}km/h -> ok`);
+    return null;
+  }
+  log(`imei=${imei} lat=${rec.lat} lon=${rec.lon} speed=${rec.speedKmh}km/h -> ok`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
   }
 }
 
@@ -216,6 +309,21 @@ const server = net.createServer((socket) => {
       // Step 2: AVL data packets (may arrive split or batched)
       while (true) {
         if (buffer.length < 8) return;
+        const codec = buffer[8];
+
+        // Codec 12 response — the device replying to a command we sent earlier.
+        if (codec === 0x0c) {
+          const dataLen = buffer.readUInt32BE(4);
+          const totalLen = 8 + dataLen + 4;
+          if (buffer.length < totalLen) return;
+          const body = buffer.subarray(8, 8 + dataLen);
+          const textLen = body.length >= 3 ? body[2] : 0;
+          const respText = body.subarray(3, 3 + textLen).toString("ascii").trim();
+          log(`${imei}: codec12 response${respText ? `: ${respText}` : " (empty)"}`);
+          buffer = buffer.subarray(totalLen);
+          continue;
+        }
+
         const dataLen = buffer.readUInt32BE(4);
         const totalLen = 8 + dataLen + 4;
         if (buffer.length < totalLen) return;
@@ -232,7 +340,13 @@ const server = net.createServer((socket) => {
         socket.write(ack);
 
         for (const rec of records) {
-          await forwardToIngest(imei, rec);
+          const result = await forwardToIngest(imei, rec);
+          const command = result?.command;
+          const gsmCommand = ENGINE_COMMANDS[command];
+          if (gsmCommand) {
+            socket.write(codec12CommandPacket(gsmCommand));
+            log(`${imei}: relay command ${command} -> "${gsmCommand}"`);
+          }
         }
       }
     } catch (err) {

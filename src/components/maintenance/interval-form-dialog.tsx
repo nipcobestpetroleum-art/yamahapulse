@@ -41,6 +41,7 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
   const [vehicleId, setVehicleId] = useState("");
   const [intervalKm, setIntervalKm] = useState("");
   const [intervalDays, setIntervalDays] = useState("");
+  const [intervalHours, setIntervalHours] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -56,14 +57,15 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
     setVehicleId(interval?.vehicle_id ?? "");
     setIntervalKm(interval?.interval_km?.toString() ?? "");
     setIntervalDays(interval?.interval_days?.toString() ?? "");
+    setIntervalHours(interval?.interval_hours?.toString() ?? "");
     setIsActive(interval?.is_active ?? true);
   }, [open, interval, currentOrg]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrg || !serviceType.trim()) return;
-    if (!intervalKm && !intervalDays) {
-      showError("Set at least a distance or time interval.");
+    if (!intervalKm && !intervalDays && !intervalHours) {
+      showError("Set at least a distance, time, or engine-hours interval.");
       return;
     }
     setSaving(true);
@@ -73,6 +75,7 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
       vehicle_id: vehicleId || null,
       interval_km: intervalKm ? parseFloat(intervalKm) : null,
       interval_days: intervalDays ? parseInt(intervalDays, 10) : null,
+      interval_hours: intervalHours ? parseFloat(intervalHours) : null,
       is_active: isActive,
     };
 
@@ -109,8 +112,8 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
         <DialogHeader>
           <DialogTitle>{interval ? "Edit interval" : "Add maintenance interval"}</DialogTitle>
           <DialogDescription>
-            Automatically schedule service when a vehicle's real odometer reading (from GPS
-            telemetry) or time since last service crosses this threshold.
+            Automatically schedule service when a vehicle's real odometer reading, engine
+            hours (from GPS telemetry), or time since last service crosses this threshold.
           </DialogDescription>
         </DialogHeader>
 
@@ -142,7 +145,7 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
             </Select>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="int-km">Every (km)</Label>
               <Input
@@ -163,6 +166,17 @@ export function IntervalFormDialog({ open, onOpenChange, interval, onSaved }: Pr
                 placeholder="e.g. 180"
                 value={intervalDays}
                 onChange={(e) => setIntervalDays(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="int-hours">Every (engine hours)</Label>
+              <Input
+                id="int-hours"
+                type="number"
+                min="0"
+                placeholder="e.g. 250"
+                value={intervalHours}
+                onChange={(e) => setIntervalHours(e.target.value)}
               />
             </div>
           </div>

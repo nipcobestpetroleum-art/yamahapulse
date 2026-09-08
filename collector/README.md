@@ -105,6 +105,44 @@ unknown IMEIs on purpose, which keeps strangers' traffic out of your fleet data.
 Within 1–2 minutes the tracker connects — you'll see `IMEI accepted: 353691842796392`
 in the Railway logs — and the vehicle appears on **Fleet → Live Tracking**.
 
+## What the collector decodes & forwards
+
+Beyond position, speed and time it decodes the FMB920's IO elements so YamahaPulse can
+raise events, track odometer and identify drivers:
+
+| Forwarded field                        | Teltonika IO          | Meaning                                        |
+| -------------------------------------- | --------------------- | ---------------------------------------------- |
+| `ignition`                             | 239 (falls back DIN1) | Ignition on/off                                |
+| `battery`                              | 113                   | Backup battery level %                         |
+| `external_power`                       | 66                    | Derived: external voltage ≥ 6 V                |
+| `panic`                                | DIN2 (2)              | Panic/SOS button wired to Input 2              |
+| `door`                                 | DIN3 (3)              | Door sensor wired to Input 3                   |
+| `alarm`                                | 236                   | Alarm event                                    |
+| `towing`                               | 246                   | Towing detection                               |
+| `crash`                                | 247                   | Crash detection                                |
+| `jamming`                              | 250                   | GSM jamming                                    |
+| `harsh_accel` / `harsh_brake` / `harsh_corner`, `gforce` | 248 / 249 | Green driving event type + G-force |
+| `odometer_km`                          | 199                   | Total odometer (meters → km)                   |
+| `temperature`                          | 70                    | 1-Wire Temperature 1 (0.1 °C units)            |
+| `ibutton`                              | 24                    | Driver iButton key (hex)                       |
+
+Make sure these IOs are enabled on the device in Teltonika Configurator → **IO settings**
+(Alarm, Towing, Crash detection, Jamming, Green driving, Odometer, and the digital
+inputs you've wired), otherwise they will never appear in records.
+
+**Engine immobilizer:** when a fleet manager queues ENGINE_CUT / ENGINE_RESUME in the
+app, the ingest response carries the pending command, and the collector immediately
+sends the Codec 12 `setdigout 1` / `setdigout 0` command down the open socket
+(immobilizer relay expected on Output 1). The device's Codec 12 response is logged.
+
+**Testing events locally** — flags for the simulator:
+
+    SIM_PANIC=1 node simulate.js      # panic/SOS pressed
+    SIM_CRASH=1 node simulate.js      # crash event
+    SIM_POWER_CUT=1 node simulate.js  # running on backup battery
+
+---
+
 ## Environment variables
 
 | Variable         | Default                                                     | Purpose            |

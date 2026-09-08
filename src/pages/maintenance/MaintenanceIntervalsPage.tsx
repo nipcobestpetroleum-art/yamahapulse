@@ -168,7 +168,7 @@ export default function MaintenanceIntervalsPage() {
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <span className="text-sm text-muted-foreground">
-                      {[i.interval_km ? `${i.interval_km} km` : null, i.interval_days ? `${i.interval_days} days` : null]
+                      {[i.interval_km ? `${i.interval_km} km` : null, i.interval_days ? `${i.interval_days} days` : null, i.interval_hours ? `${i.interval_hours} engine hrs` : null]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>

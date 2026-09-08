@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_intervals ADD COLUMN IF NOT EXISTS interval_hours NUMERIC(10,2);

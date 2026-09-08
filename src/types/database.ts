@@ -192,6 +192,7 @@ export interface MaintenanceSchedule {
   service_type: string;
   due_date: string | null;
   due_odometer: number | null;
+  due_engine_hours: number | null;
   status: MaintenanceStatus;
   completed_at: string | null;
   cost: number | null;
@@ -209,6 +210,7 @@ export interface MaintenanceInterval {
   service_type: string;
   interval_km: number | null;
   interval_days: number | null;
+  interval_hours: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -268,6 +270,7 @@ export type Position = {
 
 export type LatestPosition = Omit<Position, "id"> & {
   device_id: string;
+  updated_at: string;
   idle_since: string | null;
   idle_alerted: boolean;
   low_battery_alerted: boolean;
