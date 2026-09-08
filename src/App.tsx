@@ -30,6 +30,18 @@ import TheftDetectionPage from "./pages/fuel/TheftDetectionPage";
 import JobsPage from "./pages/operations/JobsPage";
 import DispatchPage from "./pages/operations/DispatchPage";
 import DriverBehaviourPage from "./pages/operations/DriverBehaviourPage";
+import MaintenanceDashboardPage from "./pages/maintenance/MaintenanceDashboardPage";
+import InspectionsPage from "./pages/maintenance/InspectionsPage";
+import TiresPage from "./pages/maintenance/TiresPage";
+import DocumentsPage from "./pages/maintenance/DocumentsPage";
+import CamerasPage from "./pages/video/CamerasPage";
+import LiveVideoPage from "./pages/video/LiveVideoPage";
+import VideoEventsPage from "./pages/video/VideoEventsPage";
+import AiEventsPage from "./pages/video/AiEventsPage";
+import SimCardsPage from "./pages/assets/SimCardsPage";
+import SensorsPage from "./pages/assets/SensorsPage";
+import InventoryPage from "./pages/assets/InventoryPage";
+import TechniciansPage from "./pages/assets/TechniciansPage";
 import UsersPage from "./pages/admin/UsersPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
@@ -103,6 +115,20 @@ const App = () => (
               <Route path="/operations/route-planning" element={<RoutesPage />} />
               <Route path="/operations/driver-behaviour" element={<DriverBehaviourPage />} />
 
+              {/* Phase 5 */}
+              <Route path="/maintenance/dashboard" element={<MaintenanceDashboardPage />} />
+              <Route path="/maintenance/inspection" element={<InspectionsPage />} />
+              <Route path="/maintenance/tires" element={<TiresPage />} />
+              <Route path="/maintenance/documents" element={<DocumentsPage />} />
+              <Route path="/video/cameras" element={<CamerasPage />} />
+              <Route path="/video/live" element={<LiveVideoPage />} />
+              <Route path="/video/events" element={<VideoEventsPage />} />
+              <Route path="/video/ai-events" element={<AiEventsPage />} />
+              <Route path="/assets/sims" element={<SimCardsPage />} />
+              <Route path="/assets/sensors" element={<SensorsPage />} />
+              <Route path="/assets/inventory" element={<InventoryPage />} />
+              <Route path="/assets/technicians" element={<TechniciansPage />} />
+
               {/* Admin */}
               <Route path="/admin/users" element={<UsersPage />} />
               <Route path="/admin/organization" element={<OrganizationPage />} />
@@ -113,9 +139,6 @@ const App = () => (
               <Route path="/monitoring/*" element={<PlaceholderPage />} />
               <Route path="/fuel/*" element={<PlaceholderPage />} />
               <Route path="/operations/*" element={<PlaceholderPage />} />
-              <Route path="/maintenance/*" element={<PlaceholderPage />} />
-              <Route path="/video/*" element={<PlaceholderPage />} />
-              <Route path="/assets/*" element={<PlaceholderPage />} />
               <Route path="/finance/*" element={<PlaceholderPage />} />
               <Route path="/admin/*" element={<PlaceholderPage />} />
             </Route>
