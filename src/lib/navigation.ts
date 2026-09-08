@@ -71,7 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
       { title: "Drivers", href: "/fleet/drivers", icon: Users, implemented: true },
       { title: "Trips", href: "/fleet/trips", icon: Route, implemented: true },
-      { title: "Routes", href: "/fleet/routes", icon: Navigation },
+      { title: "Routes", href: "/fleet/routes", icon: Navigation, implemented: true },
     ],
   },
   // ... keep rest unchanged

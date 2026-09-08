@@ -245,6 +245,26 @@ export interface Geofence {
   updated_at: string;
 }
 
+export interface RouteWaypoint {
+  lat: number;
+  lon: number;
+  name?: string;
+}
+
+export interface FleetRoute {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  waypoints: RouteWaypoint[];
+  distance_km: number | null;
+  estimated_duration_minutes: number | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type DeviceEventType =
   | "IGNITION_ON"
   | "IGNITION_OFF"
