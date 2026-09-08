@@ -1,0 +1,1 @@
+ALTER TABLE public.gps_devices ADD COLUMN IF NOT EXISTS engine_immobilized boolean NOT NULL DEFAULT false;

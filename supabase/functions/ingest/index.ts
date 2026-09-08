@@ -109,6 +109,9 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
 
   const ibuttonRaw = p("ibutton") ?? p("ibutton_id") ?? p("driver_key") ?? p("rfid");
 
+  const doorRaw = p("door") ?? p("din3");
+  const door = parseBoolLike(doorRaw);
+
   return {
     ident: ident ? String(ident).trim() : null,
     latitude,
@@ -128,6 +131,10 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     gforce: toNumber(p("gforce") ?? p("g_force")),
     towing: parseBoolLike(p("towing")),
     jamming: parseBoolLike(p("jamming") ?? p("gsm_jamming")),
+    // Panic/SOS button and alarm/door digital inputs
+    panic: parseBoolLike(p("panic") ?? p("sos") ?? p("din2")),
+    alarm: parseBoolLike(p("alarm") ?? p("din4")),
+    door,
     // 1-Wire iButton driver identification
     ibutton: ibuttonRaw ? String(ibuttonRaw).trim() : null,
     // 1-Wire / BLE sensors
@@ -199,7 +206,7 @@ serve(async (req) => {
   // distance travelled and elapsed time for odometer / engine-hour tracking.
   const { data: previousPosition } = await supabase
     .from("latest_positions")
-    .select("latitude, longitude, recorded_at, ignition")
+    .select("latitude, longitude, recorded_at, ignition, door_open")
     .eq("device_id", device.id)
     .maybeSingle();
 
@@ -220,6 +227,7 @@ serve(async (req) => {
     accuracy: data.accuracy,
     battery_level: data.battery,
     ignition: data.ignition,
+    door_open: data.door,
   };
 
   // Insert history row
@@ -252,6 +260,15 @@ serve(async (req) => {
   if (data.harshCorner) events.push({ type: "HARSH_CORNER", severity: "warning", message: "Harsh cornering detected" });
   if (data.towing) events.push({ type: "TOWING", severity: "critical", message: "Vehicle moved while ignition is off — possible towing" });
   if (data.jamming) events.push({ type: "JAMMING", severity: "critical", message: "GSM signal jamming detected" });
+  if (data.panic) events.push({ type: "PANIC", severity: "critical", message: "Panic/SOS button pressed" });
+  if (data.alarm) events.push({ type: "ALARM", severity: "critical", message: "Vehicle alarm triggered" });
+  if (data.door !== null && previousPosition && data.door !== previousPosition.door_open) {
+    events.push(
+      data.door
+        ? { type: "DOOR_OPEN", severity: "warning", message: "Door opened" }
+        : { type: "DOOR_CLOSE", severity: "info", message: "Door closed" },
+    );
+  }
   if (data.crash) {
     events.push({
       type: "CRASH",
@@ -299,6 +316,25 @@ serve(async (req) => {
       })),
     );
     if (eventsError) console.error("[ingest] failed to insert device events", eventsError);
+
+    // Critical events also surface as actionable alerts in the notification inbox
+    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM"];
+    const criticalEvents = events.filter((e) => criticalTypes.includes(e.type));
+    if (criticalEvents.length > 0) {
+      const { error: alertsError } = await supabase.from("alerts").insert(
+        criticalEvents.map((e) => ({
+          organization_id: orgId,
+          device_id: device.id,
+          vehicle_id: vehicleId,
+          type: e.type,
+          severity: e.severity,
+          message: e.message,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        })),
+      );
+      if (alertsError) console.error("[ingest] failed to insert alerts", alertsError);
+    }
   }
 
   // Odometer & engine-hour tracking, feeding telemetry-driven maintenance triggers
@@ -372,10 +408,36 @@ serve(async (req) => {
     }
   }
 
+  // Deliver any pending remote engine control command (relay output) to the collector.
+  // The collector is expected to send the corresponding Codec12 command to the device
+  // on its next contact; we optimistically mark it sent and reflect the new state.
+  let command: { id: string; command: string } | null = null;
+  const { data: pendingCommand } = await supabase
+    .from("device_commands")
+    .select("id, command")
+    .eq("device_id", device.id)
+    .eq("status", "PENDING")
+    .order("requested_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingCommand) {
+    command = pendingCommand;
+    await supabase
+      .from("device_commands")
+      .update({ status: "SENT", sent_at: now.toISOString() })
+      .eq("id", pendingCommand.id);
+    await supabase
+      .from("gps_devices")
+      .update({ engine_immobilized: pendingCommand.command === "ENGINE_CUT" })
+      .eq("id", device.id);
+  }
+
   return corsResponse({
     ok: true,
     device_id: device.id,
     recorded_at: position.recorded_at,
+    command: command?.command ?? null,
   });
 });
 

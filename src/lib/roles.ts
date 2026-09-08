@@ -175,6 +175,12 @@ export const MANAGER_WRITE_ROLES: RoleName[] = [
 
 export const MANAGER_DELETE_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "FLEET_MANAGER"];
 
+export const ENGINE_CONTROL_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
 export function hasAnyRole(role: RoleName | null, allowed: RoleName[]): boolean {
   if (!role) return false;
   return allowed.includes(role);

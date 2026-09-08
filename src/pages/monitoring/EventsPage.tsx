@@ -4,6 +4,8 @@ import {
   Activity,
   AlertOctagon,
   AlertTriangle,
+  DoorClosed,
+  DoorOpen,
   Gauge,
   LogIn,
   LogOut,
@@ -13,6 +15,7 @@ import {
   Power,
   PowerOff,
   Radio,
+  Siren,
   Truck,
   User,
   Zap,
@@ -57,6 +60,10 @@ const EVENT_ICONS: Record<DeviceEventType, typeof Activity> = {
   TOWING: Truck,
   JAMMING: Radio,
   DRIVER_IDENTIFIED: User,
+  PANIC: Siren,
+  DOOR_OPEN: DoorOpen,
+  DOOR_CLOSE: DoorClosed,
+  ALARM: Siren,
 };
 
 const EVENT_LABELS: Record<DeviceEventType, string> = {
@@ -77,6 +84,10 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   TOWING: "Possible towing",
   JAMMING: "GSM jamming",
   DRIVER_IDENTIFIED: "Driver identified",
+  PANIC: "Panic/SOS button",
+  DOOR_OPEN: "Door opened",
+  DOOR_CLOSE: "Door closed",
+  ALARM: "Alarm triggered",
 };
 
 const SEVERITY_STYLES: Record<string, string> = {

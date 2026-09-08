@@ -112,10 +112,26 @@ export interface GpsDevice {
   protocol: string | null;
   status: DeviceStatus;
   last_seen_at: string | null;
+  engine_immobilized: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
   device_model?: DeviceModel | null;
+}
+
+export type DeviceCommandType = "ENGINE_CUT" | "ENGINE_RESUME";
+export type DeviceCommandStatus = "PENDING" | "SENT" | "FAILED";
+
+export interface DeviceCommand {
+  id: string;
+  organization_id: string;
+  device_id: string;
+  vehicle_id: string | null;
+  command: DeviceCommandType;
+  status: DeviceCommandStatus;
+  requested_by: string | null;
+  requested_at: string;
+  sent_at: string | null;
 }
 
 export interface DeviceAssignment {
@@ -521,7 +537,11 @@ export type DeviceEventType =
   | "CRASH"
   | "TOWING"
   | "JAMMING"
-  | "DRIVER_IDENTIFIED";
+  | "DRIVER_IDENTIFIED"
+  | "PANIC"
+  | "DOOR_OPEN"
+  | "DOOR_CLOSE"
+  | "ALARM";
 
 export interface DeviceEvent {
   id: string;
