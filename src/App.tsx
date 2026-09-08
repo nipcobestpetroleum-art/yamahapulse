@@ -20,6 +20,7 @@ import GeofencesPage from "./pages/monitoring/GeofencesPage";
 import AlertsPage from "./pages/monitoring/AlertsPage";
 import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
 import PlaybackPage from "./pages/monitoring/PlaybackPage";
+import EventsPage from "./pages/monitoring/EventsPage";
 import UsersPage from "./pages/admin/UsersPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
@@ -72,10 +73,12 @@ const App = () => (
               <Route path="/fleet/routes" element={<RoutesPage />} />
 
               {/* Phase 3 */}
+              <Route path="/monitoring/live" element={<LiveTrackingPage />} />
               <Route path="/monitoring/geofences" element={<GeofencesPage />} />
               <Route path="/monitoring/alerts" element={<AlertsPage />} />
               <Route path="/monitoring/alert-rules" element={<AlertRulesPage />} />
               <Route path="/monitoring/playback" element={<PlaybackPage />} />
+              <Route path="/monitoring/events" element={<EventsPage />} />
               <Route path="/maintenance/schedule" element={<MaintenancePage />} />
 
               {/* Admin */}
