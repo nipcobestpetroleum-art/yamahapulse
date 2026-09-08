@@ -16,6 +16,7 @@ import {
   Power,
   PowerOff,
   Radio,
+  Satellite,
   Siren,
   Truck,
   User,
@@ -67,6 +68,8 @@ const EVENT_ICONS: Record<DeviceEventType, typeof Activity> = {
   ALARM: Siren,
   POWER_CUT: PowerOff,
   POWER_RESTORED: Power,
+  GPS_LOST: Satellite,
+  GPS_RESTORED: Satellite,
   LOW_BATTERY: BatteryWarning,
 };
 
@@ -94,6 +97,8 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   ALARM: "Alarm triggered",
   POWER_CUT: "External power lost",
   POWER_RESTORED: "External power restored",
+  GPS_LOST: "GNSS fix lost",
+  GPS_RESTORED: "GNSS fix restored",
   LOW_BATTERY: "Low device battery",
 };
 

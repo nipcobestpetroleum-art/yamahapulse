@@ -145,6 +145,18 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     // Odometer & engine hours (explicit from device, or derived below)
     odometerKm: toNumber(p("odometer_km") ?? p("odometer") ?? p("total_odometer")),
     engineHours: toNumber(p("engine_hours") ?? p("enginehours")),
+    // Extended diagnostics (Teltonika AVL IO elements)
+    satellites: toNumber(p("satellites") ?? p("sats")),
+    hdop: toNumber(p("hdop")),
+    pdop: toNumber(p("pdop")),
+    gnssStatus: toNumber(p("gnss_status")),
+    gsmSignal: toNumber(p("gsm_signal")),
+    gsmOperator: toNumber(p("gsm_operator")),
+    sleepMode: toNumber(p("sleep_mode")),
+    movement: parseBoolLike(p("movement")),
+    batteryVoltageMv: toNumber(p("battery_voltage_mv")),
+    batteryCurrentMa: toNumber(p("battery_current_ma")),
+    externalVoltageMv: toNumber(p("external_voltage_mv")),
   };
 }
 
@@ -209,7 +221,7 @@ serve(async (req) => {
   const { data: previousPosition } = await supabase
     .from("latest_positions")
     .select(
-      "latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted, low_battery_alerted",
+      "latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted, low_battery_alerted, satellites, movement",
     )
     .eq("device_id", device.id)
     .maybeSingle();
@@ -233,6 +245,17 @@ serve(async (req) => {
     ignition: data.ignition,
     door_open: data.door,
     external_power: data.externalPower,
+    satellites: data.satellites,
+    hdop: data.hdop,
+    pdop: data.pdop,
+    gnss_status: data.gnssStatus,
+    gsm_signal: data.gsmSignal,
+    gsm_operator: data.gsmOperator,
+    sleep_mode: data.sleepMode,
+    movement: data.movement,
+    battery_voltage_mv: data.batteryVoltageMv,
+    battery_current_ma: data.batteryCurrentMa,
+    external_voltage_mv: data.externalVoltageMv,
   };
 
   // Insert history row
@@ -338,6 +361,32 @@ serve(async (req) => {
         ? { type: "DOOR_OPEN", severity: "warning", message: "Door opened" }
         : { type: "DOOR_CLOSE", severity: "info", message: "Door closed" },
     );
+  }
+  // Ignition transitions (these also drive automatic trip detection)
+  if (data.ignition === true && previousPosition?.ignition === false) {
+    events.push({ type: "IGNITION_ON", severity: "info", message: "Ignition turned on" });
+  }
+  if (data.ignition === false && previousPosition?.ignition === true) {
+    events.push({ type: "IGNITION_OFF", severity: "info", message: "Ignition turned off" });
+  }
+  // Built-in movement sensor transitions
+  if (data.movement === true && previousPosition?.movement === false) {
+    events.push({ type: "MOVING", severity: "info", message: "Movement started" });
+  }
+  if (data.movement === false && previousPosition?.movement === true) {
+    events.push({ type: "STOPPED", severity: "info", message: "Movement stopped" });
+  }
+  // GNSS fix lost / restored
+  if (data.satellites !== null && previousPosition?.satellites !== null && previousPosition?.satellites !== undefined) {
+    if (data.satellites === 0 && previousPosition.satellites > 0) {
+      events.push({ type: "GPS_LOST", severity: "warning", message: "GNSS fix lost — no satellites in view" });
+    } else if (data.satellites > 0 && previousPosition.satellites === 0) {
+      events.push({
+        type: "GPS_RESTORED",
+        severity: "info",
+        message: `GNSS fix restored (${data.satellites} satellites)`,
+      });
+    }
   }
   if (data.crash) {
     events.push({

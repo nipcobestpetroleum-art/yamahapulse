@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
+  BrainCircuit,
   CalendarClock,
   Camera,
   Car,
@@ -63,6 +64,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: LayoutDashboard,
     items: [
       { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, implemented: true },
+      { title: "AI Report", href: "/ai-report", icon: BrainCircuit, implemented: true },
       { title: "Reports", href: "/reports", icon: BarChart3, implemented: true },
     ],
   },

@@ -268,6 +268,17 @@ export type Position = {
   ignition: boolean | null;
   door_open: boolean | null;
   external_power: boolean | null;
+  satellites: number | null;
+  hdop: number | null;
+  pdop: number | null;
+  gnss_status: number | null;
+  gsm_signal: number | null;
+  gsm_operator: number | null;
+  sleep_mode: number | null;
+  movement: boolean | null;
+  battery_voltage_mv: number | null;
+  battery_current_ma: number | null;
+  external_voltage_mv: number | null;
 };
 
 export type LatestPosition = Omit<Position, "id"> & {
@@ -558,6 +569,8 @@ export type DeviceEventType =
   | "ALARM"
   | "POWER_CUT"
   | "POWER_RESTORED"
+  | "GPS_LOST"
+  | "GPS_RESTORED"
   | "LOW_BATTERY";
 
 export interface DeviceEvent {

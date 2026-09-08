@@ -33,6 +33,14 @@ const IO = {
   GREEN_VALUE: 249, // G-force in mg
   JAMMING: 250,
   ODOMETER: 199, // Total odometer, meters
+  GSM_SIGNAL: 21, // 0–5 bars
+  GSM_OPERATOR: 241, // MCC*100+MNC, e.g. 63902 = Kenya/Safaricom
+  GNSS_STATUS: 119,
+  PDOP: 179, // x10
+  HDOP: 180, // x10
+  SLEEP_MODE: 200,
+  BATT_CURRENT: 116, // mA
+  BATT_VOLTAGE: 117, // mV
 };
 
 // Ingest returns a pending remote command; translate it to a GSM command for the device.
@@ -108,7 +116,7 @@ function parseRecord(r, codecId) {
   const lat = r.i32() / 1e7;
   const altitude = r.i16();
   const angle = r.u16(); // degrees
-  r.u8(); // satellites
+  const satellites = r.u8();
   const speedKmh = r.u16();
 
   if (is8E) r.u16(); else r.u8(); // event IO id
@@ -156,6 +164,7 @@ function parseRecord(r, codecId) {
     altitude,
     angle,
     speedKmh,
+    satellites,
     ignition: io.has(IO.IGNITION) ? io.get(IO.IGNITION) === 1 : bool(IO.DIN1),
     batteryLevel: io.has(IO.BATTERY) ? io.get(IO.BATTERY) : null,
     panic: bool(IO.DIN2),
@@ -177,6 +186,14 @@ function parseRecord(r, codecId) {
       ibuttonRaw !== null && ibuttonRaw !== undefined
         ? ibuttonRaw.toString(16).padStart(16, "0")
         : null,
+    gsmSignal: io.has(IO.GSM_SIGNAL) ? io.get(IO.GSM_SIGNAL) : null,
+    gsmOperator: io.has(IO.GSM_OPERATOR) ? io.get(IO.GSM_OPERATOR) : null,
+    gnssStatus: io.has(IO.GNSS_STATUS) ? io.get(IO.GNSS_STATUS) : null,
+    pdop: io.has(IO.PDOP) ? Number((io.get(IO.PDOP) / 10).toFixed(1)) : null,
+    hdop: io.has(IO.HDOP) ? Number((io.get(IO.HDOP) / 10).toFixed(1)) : null,
+    sleepMode: io.has(IO.SLEEP_MODE) ? io.get(IO.SLEEP_MODE) : null,
+    batteryCurrentMa: io.has(IO.BATT_CURRENT) ? io.get(IO.BATT_CURRENT) : null,
+    batteryVoltageMv: io.has(IO.BATT_VOLTAGE) ? io.get(IO.BATT_VOLTAGE) : null,
   };
 }
 
@@ -252,6 +269,16 @@ async function forwardToIngest(imei, rec) {
   if (rec.odometerKm !== null) payload.odometer_km = rec.odometerKm;
   if (rec.temperature !== null) payload.temperature = rec.temperature;
   if (rec.ibutton) payload.ibutton = rec.ibutton;
+  if (rec.satellites !== null) payload.satellites = rec.satellites;
+  if (rec.gsmSignal !== null) payload.gsm_signal = rec.gsmSignal;
+  if (rec.gsmOperator !== null) payload.gsm_operator = rec.gsmOperator;
+  if (rec.gnssStatus !== null) payload.gnss_status = rec.gnssStatus;
+  if (rec.pdop !== null) payload.pdop = rec.pdop;
+  if (rec.hdop !== null) payload.hdop = rec.hdop;
+  if (rec.sleepMode !== null) payload.sleep_mode = rec.sleepMode;
+  if (rec.batteryCurrentMa !== null) payload.battery_current_ma = rec.batteryCurrentMa;
+  if (rec.batteryVoltageMv !== null) payload.battery_voltage_mv = rec.batteryVoltageMv;
+  if (rec.extVoltageMv !== null) payload.external_voltage_mv = rec.extVoltageMv;
 
   const res = await fetch(INGEST_URL, {
     method: "POST",

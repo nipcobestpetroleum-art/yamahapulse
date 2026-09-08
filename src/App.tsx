@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import ProfilePage from "./pages/ProfilePage";
 import ReportsPage from "./pages/reports/ReportsPage";
+import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
@@ -90,6 +91,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />
 

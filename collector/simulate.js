@@ -40,6 +40,9 @@ function buildRecord() {
     [2, PANIC ? 1 : 0],
     [3, 0],
     [113, POWER_CUT ? 21 : 92],
+    [21, 4], // GSM signal: good
+    [119, 3], // GNSS status: 3D fix
+    [200, 0], // sleep mode: awake
   ];
   if (CRASH) oneByte.push([247, 1]);
 
@@ -47,6 +50,11 @@ function buildRecord() {
   const twoByte = [
     [66, POWER_CUT ? 3400 : 13850],
     [70, 255], // 25.5 °C
+    [180, 14], // HDOP 1.4
+    [179, 22], // PDOP 2.2
+    [116, 42], // battery current mA
+    [117, 4100], // battery voltage mV
+    [241, 63902], // GSM operator MCC*100+MNC (639-02)
   ];
 
   // 4-byte IOs: total odometer in meters (199)
