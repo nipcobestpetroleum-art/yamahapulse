@@ -81,8 +81,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Live Map", href: "/monitoring/live", icon: Map },
       { title: "Playback", href: "/monitoring/playback", icon: Play },
-      { title: "Geofences", href: "/monitoring/geofences", icon: MapPin },
-      { title: "Alerts", href: "/monitoring/alerts", icon: Bell },
+      { title: "Geofences", href: "/monitoring/geofences", icon: MapPin, implemented: true },
+      { title: "Alerts", href: "/monitoring/alerts", icon: Bell, implemented: true },
+      { title: "Alert Rules", href: "/monitoring/alert-rules", icon: Siren, implemented: true },
       { title: "Events", href: "/monitoring/events", icon: Activity },
     ],
   },

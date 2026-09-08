@@ -55,6 +55,34 @@ export const DRIVER_DELETE_ROLES: RoleName[] = [
   "DRIVER_MANAGER",
 ];
 
+export const GEOFENCE_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+];
+
+export const GEOFENCE_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
+export const ALERT_RULE_WRITE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+];
+
+export const ALERT_RULE_DELETE_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "FLEET_MANAGER",
+];
+
 export function hasAnyRole(role: RoleName | null, allowed: RoleName[]): boolean {
   if (!role) return false;
   return allowed.includes(role);

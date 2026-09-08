@@ -13,6 +13,9 @@ import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
 import DriversPage from "./pages/fleet/DriversPage";
+import GeofencesPage from "./pages/monitoring/GeofencesPage";
+import AlertsPage from "./pages/monitoring/AlertsPage";
+import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -58,6 +61,11 @@ const App = () => (
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />
+
+              {/* Phase 3 */}
+              <Route path="/monitoring/geofences" element={<GeofencesPage />} />
+              <Route path="/monitoring/alerts" element={<AlertsPage />} />
+              <Route path="/monitoring/alert-rules" element={<AlertRulesPage />} />
 
               {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />

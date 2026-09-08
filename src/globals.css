@@ -1,9 +1,9 @@
+/* Leaflet map (required for proper map rendering) — @import must be first */
+@import "leaflet/dist/leaflet.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Leaflet map (required for proper map rendering) */
-@import "leaflet/dist/leaflet.css";
 
 @layer base {
   :root {
