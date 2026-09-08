@@ -1,0 +1,2 @@
+CREATE POLICY "video_events_insert" ON public.video_events
+FOR INSERT TO authenticated WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER']));

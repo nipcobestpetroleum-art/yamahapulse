@@ -324,6 +324,159 @@ export interface Job {
   driver?: { name: string } | null;
 }
 
+export interface Technician {
+  id: string;
+  organization_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  specialty: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChecklistItem {
+  label: string;
+  passed: boolean;
+}
+
+export type InspectionStatus = "PASS" | "FAIL" | "NEEDS_ATTENTION";
+
+export interface VehicleInspection {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  technician_id: string | null;
+  inspected_at: string;
+  checklist: ChecklistItem[];
+  overall_status: InspectionStatus;
+  notes: string | null;
+  created_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+  technician?: { name: string } | null;
+}
+
+export type TirePosition = "FRONT_LEFT" | "FRONT_RIGHT" | "REAR_LEFT" | "REAR_RIGHT" | "SPARE";
+export type TireStatus = "GOOD" | "WORN" | "NEEDS_REPLACEMENT";
+
+export interface VehicleTire {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  position: TirePosition;
+  brand: string | null;
+  size: string | null;
+  installed_at: string | null;
+  tread_depth_mm: number | null;
+  status: TireStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export type DocumentType = "INSURANCE" | "REGISTRATION" | "PERMIT" | "INSPECTION_CERTIFICATE" | "OTHER";
+
+export interface VehicleDocument {
+  id: string;
+  organization_id: string;
+  vehicle_id: string;
+  doc_type: DocumentType;
+  title: string;
+  file_url: string | null;
+  expiry_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export type CameraDirection = "FRONT" | "DRIVER" | "CARGO" | "REAR" | "OTHER";
+export type CameraStatus = "ACTIVE" | "INACTIVE" | "OFFLINE";
+
+export interface Camera {
+  id: string;
+  organization_id: string;
+  vehicle_id: string | null;
+  name: string;
+  direction: CameraDirection;
+  stream_url: string | null;
+  resolution: string | null;
+  status: CameraStatus;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string; registration_number: string } | null;
+}
+
+export type VideoEventCategory = "DRIVING" | "AI_SAFETY";
+
+export interface VideoEvent {
+  id: string;
+  organization_id: string;
+  camera_id: string | null;
+  vehicle_id: string | null;
+  category: VideoEventCategory;
+  type: string;
+  severity: "info" | "warning" | "critical";
+  clip_url: string | null;
+  message: string | null;
+  reviewed: boolean;
+  created_at: string;
+  vehicle?: { name: string } | null;
+  camera?: { name: string } | null;
+}
+
+export type SimCardStatus = "ACTIVE" | "SUSPENDED" | "INACTIVE";
+
+export interface SimCard {
+  id: string;
+  organization_id: string;
+  device_id: string | null;
+  iccid: string;
+  phone_number: string | null;
+  carrier: string | null;
+  plan_data_mb: number | null;
+  status: SimCardStatus;
+  expiry_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  device?: { name: string; imei: string } | null;
+}
+
+export type AssetSensorType = "TEMPERATURE" | "HUMIDITY" | "DOOR" | "PANIC_BUTTON" | "CUSTOM";
+
+export interface AssetSensor {
+  id: string;
+  organization_id: string;
+  vehicle_id: string | null;
+  device_id: string | null;
+  name: string;
+  sensor_type: AssetSensorType;
+  unit: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  vehicle?: { name: string } | null;
+  device?: { name: string } | null;
+}
+
+export interface InventoryItem {
+  id: string;
+  organization_id: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  quantity: number;
+  unit: string;
+  reorder_level: number | null;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type DeviceEventType =
   | "IGNITION_ON"
   | "IGNITION_OFF"
