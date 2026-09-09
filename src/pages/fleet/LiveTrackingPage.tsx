@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import {
   Activity,
@@ -31,6 +32,11 @@ import { useEffect, useState as useReactState } from "react";
 import { useLivePositions } from "@/hooks/use-live-positions";
 import { cn } from "@/lib/utils";
 import { LiveMapCanvas, type LiveMapVehicle } from "@/components/tracking/live-map-canvas";
+import {
+  getTelemetryStatus,
+  TELEMETRY_STATUS_LABELS,
+  type TelemetryStatus,
+} from "@/lib/telemetry-status";
 
 interface AssignedDevice {
   deviceId: string;
@@ -54,9 +60,11 @@ function isOffline(latestUpdatedAt: string | null) {
 
 export default function LiveTrackingPage() {
   const { currentOrg } = useAuth();
+  const navigate = useNavigate();
   const orgId = currentOrg?.id ?? null;
 
   const [search, setSearch] = useReactState("");
+  const [statusFilter, setStatusFilter] = useReactState<TelemetryStatus | "ALL">("ALL");
   const [selectedKey, setSelectedKey] = useReactState<string | null>(null);
 
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
@@ -132,18 +140,23 @@ export default function LiveTrackingPage() {
     }));
   }, [assigned]);
 
+  const statusByDevice = useMemo(() => {
+    const result: Record<string, TelemetryStatus> = {};
+    for (const vehicle of vehiclesToTrack) {
+      result[vehicle.deviceId] = getTelemetryStatus(positionsByDeviceId[vehicle.deviceId]);
+    }
+    return result;
+  }, [vehiclesToTrack, positionsByDeviceId]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return vehiclesToTrack;
     return vehiclesToTrack.filter((v) => {
-      return (
-        v.vehicleName.toLowerCase().includes(q) ||
-        (v.registration ?? "").toLowerCase().includes(q) ||
-        v.deviceName.toLowerCase().includes(q) ||
-        v.imei.toLowerCase().includes(q)
-      );
+      const matchesSearch = !q || [v.vehicleName, v.registration ?? "", v.deviceName, v.imei]
+        .some((value) => value.toLowerCase().includes(q));
+      const matchesStatus = statusFilter === "ALL" || statusByDevice[v.deviceId] === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [vehiclesToTrack, search]);
+  }, [vehiclesToTrack, search, statusFilter, statusByDevice]);
 
   const liveMapVehicles = useMemo<LiveMapVehicle[]>(() => {
     return filtered
@@ -162,21 +175,16 @@ export default function LiveTrackingPage() {
   }, [filtered, positionsByDeviceId]);
 
   const stats = useMemo(() => {
-    const tracked = liveMapVehicles.length;
-    let online = 0;
-    let moving = 0;
-
-    for (const v of liveMapVehicles) {
-      const offline = isOffline(v.position.updated_at);
-      if (!offline) online += 1;
-      if ((v.position.speed ?? 0) > 2 && !offline) moving += 1;
+    const counts = { tracked: vehiclesToTrack.length, moving: 0, idling: 0, stopped: 0, offline: 0, unknown: 0 };
+    for (const status of Object.values(statusByDevice)) {
+      if (status === "MOVING") counts.moving += 1;
+      else if (status === "IDLING") counts.idling += 1;
+      else if (status === "STOPPED") counts.stopped += 1;
+      else if (status === "OFFLINE") counts.offline += 1;
+      else counts.unknown += 1;
     }
-
-    const stationary = Math.max(0, online - moving);
-    const offline = tracked - online;
-
-    return { tracked, online, moving, stationary, offline };
-  }, [liveMapVehicles]);
+    return counts;
+  }, [vehiclesToTrack.length, statusByDevice]);
 
   useEffect(() => {
     if (selectedKey) return;
@@ -211,7 +219,10 @@ export default function LiveTrackingPage() {
         <LiveMapCanvas
           vehicles={liveMapVehicles}
           selectedKey={effectiveSelectedKey}
-          onSelectVehicle={(k) => setSelectedKey(k)}
+          onSelectVehicle={(k) => {
+            setSelectedKey(k);
+            navigate(`/fleet/live/${k}`);
+          }}
         />
 
         {positionsError && (
@@ -239,22 +250,22 @@ export default function LiveTrackingPage() {
               </div>
               <div className="rounded-lg border border-border bg-background/40 p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Activity className="h-4 w-4 text-emerald-400" /> Online
-                </div>
-                <div className="mt-1 text-xl font-bold">{stats.online}</div>
+                <Activity className="h-4 w-4 text-emerald-400" /> Moving
+              </div>
+              <div className="mt-1 text-xl font-bold">{stats.moving}</div>
               </div>
               <div className="rounded-lg border border-border bg-background/40 p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Car className="h-4 w-4 text-emerald-400" /> Moving
-                </div>
-                <div className="mt-1 text-xl font-bold">{stats.moving}</div>
+                <Car className="h-4 w-4 text-sky-400" /> Idling
+              </div>
+              <div className="mt-1 text-xl font-bold">{stats.idling}</div>
               </div>
               <div className="rounded-lg border border-border bg-background/40 p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <PauseCircle className="h-4 w-4 text-amber-400" /> Stopped
                 </div>
                 <div className="mt-1 text-xl font-bold">
-                  {stats.stationary + stats.offline}
+                  {stats.stopped}
                 </div>
               </div>
             </CardContent>
@@ -280,6 +291,29 @@ export default function LiveTrackingPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="border-border bg-card/60">
+          <CardContent className="flex flex-wrap gap-2 p-3">
+            {(["ALL", "MOVING", "IDLING", "STOPPED", "OFFLINE", "UNKNOWN"] as const).map((tab) => {
+              const count = tab === "ALL" ? stats.tracked : stats[tab.toLowerCase() as keyof typeof stats] ?? 0;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setStatusFilter(tab)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    statusFilter === tab
+                      ? "border-primary/40 bg-primary/15 text-primary"
+                      : "border-border bg-background/40 text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                  )}
+                >
+                  {tab === "ALL" ? "All" : TELEMETRY_STATUS_LABELS[tab]} <span className="ml-1 opacity-70">{count}</span>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-border bg-card/40">
@@ -314,17 +348,10 @@ export default function LiveTrackingPage() {
                 <TableBody>
                   {filtered.map((v) => {
                     const pos = positionsByDeviceId[v.deviceId];
-                    const offline = pos ? isOffline(pos.updated_at) : true;
+                    const status = statusByDevice[v.deviceId];
                     const ignition = pos?.ignition;
                     const speed = pos?.speed;
-
-                    const statusLabel = offline
-                      ? "Offline"
-                      : speed != null && speed > 2
-                        ? "Moving"
-                        : ignition === true
-                          ? "Idling"
-                          : "Stopped";
+                    const statusLabel = TELEMETRY_STATUS_LABELS[status];
 
                     return (
                       <TableRow
@@ -333,7 +360,10 @@ export default function LiveTrackingPage() {
                           "cursor-pointer",
                           effectiveSelectedKey === v.key && "bg-primary/5",
                         )}
-                        onClick={() => setSelectedKey(v.key)}
+                        onClick={() => {
+                          setSelectedKey(v.key);
+                          navigate(`/fleet/live/${v.deviceId}`);
+                        }}
                       >
                         <TableCell>
                           <div className="flex items-center gap-3">

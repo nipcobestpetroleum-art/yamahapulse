@@ -6,6 +6,7 @@ import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-ic
 import { formatDistanceToNow } from "date-fns";
 import { LocateFixed, Maximize2 } from "lucide-react";
 import type { LatestPosition } from "@/types/database";
+import { getTelemetryStatus, TELEMETRY_STATUS_LABELS } from "@/lib/telemetry-status";
 
 export interface LiveMapVehicle {
   key: string;
@@ -89,9 +90,8 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
           const lng = v.position.longitude;
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-          const last = new Date(v.position.recorded_at);
-          const ageMin = (Date.now() - last.getTime()) / 60000;
-          const isOffline = !Number.isFinite(ageMin) ? true : ageMin > 15;
+          const status = getTelemetryStatus(v.position);
+          const isOffline = status === "OFFLINE";
 
           return (
             <Marker
@@ -113,6 +113,7 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
                     <div className="text-xs text-muted-foreground">
                       {v.registration ? v.registration : "Unregistered vehicle"}
                     </div>
+                    <div className="mt-1 text-xs font-semibold">{TELEMETRY_STATUS_LABELS[status]}</div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">

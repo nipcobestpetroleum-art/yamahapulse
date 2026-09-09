@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Car,
@@ -47,10 +47,12 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { VehicleStatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { VehicleFormDialog } from "@/components/vehicles/vehicle-form-dialog";
 import { VehicleDetailSheet } from "@/components/vehicles/vehicle-detail-sheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useLivePositions } from "@/hooks/use-live-positions";
+import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
 import { useAuth } from "@/contexts/auth-context";
 import { useDebounce } from "@/hooks/use-debounce";
 import { hasAnyRole, VEHICLE_WRITE_ROLES, VEHICLE_DELETE_ROLES } from "@/lib/roles";
@@ -62,7 +64,10 @@ const PAGE_SIZE = 12;
 
 export default function VehiclesPage() {
   const { currentOrg, currentRole, user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { positionsByDeviceId } = useLivePositions(currentOrg?.id ?? null);
+  const [deviceByVehicle, setDeviceByVehicle] = useState<Record<string, string>>({});
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,6 +84,20 @@ export default function VehiclesPage() {
 
   const debouncedSearch = useDebounce(search);
   const canWrite = hasAnyRole(currentRole, VEHICLE_WRITE_ROLES);
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase
+      .from("device_assignments")
+      .select("vehicle_id, device_id")
+      .eq("organization_id", currentOrg.id)
+      .is("unassigned_at", null)
+      .then(({ data }) => {
+        const next: Record<string, string> = {};
+        for (const row of (data ?? []) as { vehicle_id: string; device_id: string }[]) next[row.vehicle_id] = row.device_id;
+        setDeviceByVehicle(next);
+      });
+  }, [currentOrg]);
   const canDelete = hasAnyRole(currentRole, VEHICLE_DELETE_ROLES);
 
   const load = useCallback(async () => {
@@ -247,7 +266,11 @@ export default function VehiclesPage() {
                   <TableRow
                     key={v.id}
                     className="cursor-pointer"
-                    onClick={() => setDetailVehicle(v)}
+                    onClick={() => {
+                      const deviceId = deviceByVehicle[v.id];
+                      if (deviceId) navigate(`/fleet/live/${deviceId}`);
+                      else setDetailVehicle(v);
+                    }}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -274,7 +297,11 @@ export default function VehiclesPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <VehicleStatusBadge status={v.status} />
+                      {(() => {
+                        const deviceId = deviceByVehicle[v.id];
+                        const telemetryStatus = deviceId ? getTelemetryStatus(positionsByDeviceId[deviceId]) : "UNKNOWN";
+                        return <Badge variant="outline" className={`font-medium ${TELEMETRY_STATUS_STYLES[telemetryStatus]}`}>{deviceId ? TELEMETRY_STATUS_LABELS[telemetryStatus] : "Not tracked"}</Badge>;
+                      })()}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
                       <span className="text-sm text-muted-foreground">

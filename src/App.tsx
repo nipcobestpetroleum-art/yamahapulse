@@ -15,6 +15,8 @@ import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
+import AssetDetailPage from "./pages/fleet/AssetDetailPage";
+import BatteryMonitoringPage from "./pages/assets/BatteryMonitoringPage";
 import DriversPage from "./pages/fleet/DriversPage";
 import TripsPage from "./pages/fleet/TripsPage";
 import RoutesPage from "./pages/fleet/RoutesPage";
@@ -95,9 +97,11 @@ const App = () => (
               <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />
+              <Route path="/assets/battery" element={<BatteryMonitoringPage />} />
 
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
+              <Route path="/fleet/live/:deviceId" element={<AssetDetailPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />
               <Route path="/fleet/trips" element={<TripsPage />} />
               <Route path="/fleet/routes" element={<RoutesPage />} />

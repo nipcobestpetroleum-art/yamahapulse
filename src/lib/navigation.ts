@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Battery,
   Bell,
   BrainCircuit,
   CalendarClock,
@@ -145,6 +146,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Package,
     items: [
       { title: "GPS Devices", href: "/devices", icon: Cpu, implemented: true },
+      { title: "Battery Monitoring", href: "/assets/battery", icon: Battery, implemented: true },
       { title: "SIM Cards", href: "/assets/sims", icon: Signal, implemented: true },
       { title: "Sensors", href: "/assets/sensors", icon: Droplets, implemented: true },
       { title: "Inventory", href: "/assets/inventory", icon: Package, implemented: true },

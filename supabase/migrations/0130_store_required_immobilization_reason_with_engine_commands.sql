@@ -1,0 +1,1 @@
+alter table public.device_commands add column if not exists reason text;
