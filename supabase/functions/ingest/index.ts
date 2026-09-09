@@ -65,16 +65,6 @@ function normalizeTimestamp(v: unknown): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function parsePayload(url: URL, body: Record<string, unknown> | null) {
   const p = (k: string) => url.searchParams.get(k) ?? body?.[k];
 
@@ -160,6 +150,20 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
   };
 }
 
+interface IngestResult {
+  ok?: boolean;
+  test?: boolean;
+  error?: string;
+  device_id?: string;
+  organization_id?: string;
+  vehicle_id?: string | null;
+  recorded_at?: string;
+  command?: string | null;
+  latitude?: number;
+  longitude?: number;
+  critical_events?: Array<{ type: string; message: string }>;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -190,744 +194,90 @@ serve(async (req) => {
     return corsResponse({ error: "Coordinates out of range" }, 400);
   }
 
-  // Resolve device by IMEI (globally unique per tracker)
-  const { data: device, error: deviceError } = await supabase
-    .from("gps_devices")
-    .select("id, organization_id, status")
-    .eq("imei", data.ident)
-    .maybeSingle();
-
-  if (deviceError) return corsResponse({ error: "Device lookup failed" }, 500);
-  if (!device) return corsResponse({ error: "Unknown device — register it first in Asset Management" }, 404);
-
-  // Connectivity test: confirm the device is recognized without writing any position data
-  if (isTest) {
-    return corsResponse({ ok: true, test: true, device_id: device.id, message: "Device recognized" });
-  }
-
-  // Find the vehicle this device is currently assigned to
-  const { data: assignment } = await supabase
-    .from("device_assignments")
-    .select("vehicle_id")
-    .eq("device_id", device.id)
-    .is("unassigned_at", null)
-    .maybeSingle();
-
-  const vehicleId: string | null = assignment?.vehicle_id ?? null;
-  const orgId: string = device.organization_id;
-
-  // Fetch the previous snapshot before we overwrite it, so we can derive
-  // distance travelled and elapsed time for odometer / engine-hour tracking.
-  const { data: previousPosition } = await supabase
-    .from("latest_positions")
-    .select(
-      "latitude, longitude, recorded_at, ignition, door_open, external_power, idle_since, idle_alerted, low_battery_alerted, satellites, movement",
-    )
-    .eq("device_id", device.id)
-    .maybeSingle();
-
-  const now = new Date();
-  const recordedAt = data.recorded_at ? new Date(data.recorded_at) : now;
-  if (isNaN(recordedAt.getTime())) recordedAt.setTime(now.getTime());
-
-  const position = {
-    device_id: device.id,
-    organization_id: orgId,
-    vehicle_id: vehicleId,
-    recorded_at: recordedAt.toISOString(),
-    latitude: data.latitude,
-    longitude: data.longitude,
-    speed: data.speed_kmh,
-    course: data.course,
-    altitude: data.altitude,
-    accuracy: data.accuracy,
-    battery_level: data.battery,
-    ignition: data.ignition,
-    door_open: data.door,
-    external_power: data.externalPower,
-    satellites: data.satellites,
-    hdop: data.hdop,
-    pdop: data.pdop,
-    gnss_status: data.gnssStatus,
-    gsm_signal: data.gsmSignal,
-    gsm_operator: data.gsmOperator,
-    sleep_mode: data.sleepMode,
-    movement: data.movement,
-    battery_voltage_mv: data.batteryVoltageMv,
-    battery_current_ma: data.batteryCurrentMa,
-    external_voltage_mv: data.externalVoltageMv,
+  // Single server-side RPC: resolves the device, stores telemetry, derives
+  // events/alerts/trips/odometer/maintenance, and returns any pending command.
+  // (p_recorded_at is omitted when absent so the database default `now()` applies.)
+  const args: Record<string, unknown> = {
+    p_imei: data.ident,
+    p_test: isTest,
+    p_latitude: data.latitude,
+    p_longitude: data.longitude,
+    p_speed_kmh: data.speed_kmh,
+    p_course: data.course,
+    p_altitude: data.altitude,
+    p_accuracy: data.accuracy,
+    p_battery: data.battery,
+    p_ignition: data.ignition,
+    p_door_open: data.door,
+    p_external_power: data.externalPower,
+    p_satellites: data.satellites === null ? null : Math.round(data.satellites),
+    p_hdop: data.hdop,
+    p_pdop: data.pdop,
+    p_gnss_status: data.gnssStatus === null ? null : Math.round(data.gnssStatus),
+    p_gsm_signal: data.gsmSignal === null ? null : Math.round(data.gsmSignal),
+    p_gsm_operator: data.gsmOperator === null ? null : Math.round(data.gsmOperator),
+    p_sleep_mode: data.sleepMode === null ? null : Math.round(data.sleepMode),
+    p_movement: data.movement,
+    p_battery_voltage_mv: data.batteryVoltageMv === null ? null : Math.round(data.batteryVoltageMv),
+    p_battery_current_ma: data.batteryCurrentMa === null ? null : Math.round(data.batteryCurrentMa),
+    p_external_voltage_mv: data.externalVoltageMv === null ? null : Math.round(data.externalVoltageMv),
+    p_harsh_accel: data.harshAccel,
+    p_harsh_brake: data.harshBrake,
+    p_harsh_corner: data.harshCorner,
+    p_crash: data.crash,
+    p_gforce: data.gforce,
+    p_towing: data.towing,
+    p_jamming: data.jamming,
+    p_panic: data.panic,
+    p_alarm: data.alarm,
+    p_ibutton: data.ibutton,
+    p_temperature: data.temperature,
+    p_humidity: data.humidity,
+    p_odometer_km: data.odometerKm,
+    p_engine_hours: data.engineHours,
   };
+  if (data.recorded_at) args.p_recorded_at = data.recorded_at;
 
-  // Insert history row
-  const { error: insertError } = await supabase.from("positions").insert(position);
-  if (insertError) return corsResponse({ error: "Failed to store position" }, 500);
-
-  // Excessive idling: ignition on + near-zero speed sustained past the org's configured threshold.
-  const isIdlingNow = data.ignition === true && data.speed_kmh !== null && data.speed_kmh <= 2;
-  let idleSince: Date | null = previousPosition?.idle_since ? new Date(previousPosition.idle_since) : null;
-  let idleAlerted = previousPosition?.idle_alerted ?? false;
-  let idleEventDurationMinutes = 0;
-
-  if (isIdlingNow) {
-    if (!idleSince) idleSince = recordedAt;
-  } else {
-    idleSince = null;
-    idleAlerted = false;
+  const { data: rpcData, error: rpcError } = await supabase.rpc("ingest_position", args);
+  if (rpcError) {
+    console.error("[ingest] rpc failed", rpcError);
+    return corsResponse({ error: "Failed to process telemetry" }, 500);
   }
 
-  if (isIdlingNow && idleSince && !idleAlerted) {
-    const { data: idleRule } = await supabase
-      .from("alert_rules")
-      .select("idle_minutes")
-      .eq("organization_id", orgId)
-      .eq("type", "IDLE")
-      .eq("enabled", true)
-      .not("idle_minutes", "is", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (idleRule?.idle_minutes) {
-      idleEventDurationMinutes = (recordedAt.getTime() - idleSince.getTime()) / 60_000;
-      if (idleEventDurationMinutes >= idleRule.idle_minutes) idleAlerted = true;
-    }
+  const result = (rpcData ?? null) as IngestResult | null;
+  if (!result || typeof result !== "object") {
+    return corsResponse({ error: "Ingest failed" }, 500);
+  }
+  if (result.error === "UNKNOWN_DEVICE") {
+    return corsResponse({ error: "Unknown device — register it first in Asset Management" }, 404);
   }
 
-  // Low battery: debounced so we alert once per drop below threshold, then reset once recovered.
-  let lowBatteryAlerted = previousPosition?.low_battery_alerted ?? false;
-  let lowBatteryTriggered = false;
-  let batteryThreshold: number | null = null;
-
-  if (data.battery !== null) {
-    const { data: batteryRule } = await supabase
-      .from("alert_rules")
-      .select("battery_threshold")
-      .eq("organization_id", orgId)
-      .eq("type", "LOW_BATTERY")
-      .eq("enabled", true)
-      .not("battery_threshold", "is", null)
-      .limit(1)
-      .maybeSingle();
-
-    batteryThreshold = batteryRule?.battery_threshold ?? null;
-
-    if (batteryThreshold !== null) {
-      if (data.battery < batteryThreshold) {
-        if (!lowBatteryAlerted) lowBatteryTriggered = true;
-        lowBatteryAlerted = true;
-      } else if (data.battery >= batteryThreshold + 5) {
-        lowBatteryAlerted = false;
-      }
-    }
+  if (result.test) {
+    return corsResponse({ ok: true, test: true, device_id: result.device_id, message: "Device recognized" });
   }
 
-  // Update the live "latest" snapshot
-  await supabase.from("latest_positions").upsert(
-    {
-      ...position,
-      updated_at: now.toISOString(),
-      idle_since: idleSince?.toISOString() ?? null,
-      idle_alerted: idleAlerted,
-      low_battery_alerted: lowBatteryAlerted,
-    },
-    { onConflict: "device_id" },
-  );
-
-  // Device heartbeat
-  await supabase
-    .from("gps_devices")
-    .update({
-      last_seen_at: now.toISOString(),
-      status: device.status === "IN_STOCK" ? "ACTIVE" : device.status,
-    })
-    .eq("id", device.id);
-
-  const events: Array<{
-    type: string;
-    severity: "info" | "warning" | "critical";
-    message: string;
-    metadata?: Record<string, unknown>;
-  }> = [];
-
-  if (data.harshAccel) events.push({ type: "HARSH_ACCEL", severity: "warning", message: "Harsh acceleration detected" });
-  if (data.harshBrake) events.push({ type: "HARSH_BRAKE", severity: "warning", message: "Harsh braking detected" });
-  if (data.harshCorner) events.push({ type: "HARSH_CORNER", severity: "warning", message: "Harsh cornering detected" });
-  if (data.towing) events.push({ type: "TOWING", severity: "critical", message: "Vehicle moved while ignition is off — possible towing" });
-  if (data.jamming) events.push({ type: "JAMMING", severity: "critical", message: "GSM signal jamming detected" });
-  if (data.panic) events.push({ type: "PANIC", severity: "critical", message: "Panic/SOS button pressed" });
-  if (data.alarm) events.push({ type: "ALARM", severity: "critical", message: "Vehicle alarm triggered" });
-  if (data.door !== null && previousPosition && data.door !== previousPosition.door_open) {
-    events.push(
-      data.door
-        ? { type: "DOOR_OPEN", severity: "warning", message: "Door opened" }
-        : { type: "DOOR_CLOSE", severity: "info", message: "Door closed" },
-    );
-  }
-  // Ignition transitions (these also drive automatic trip detection)
-  if (data.ignition === true && previousPosition?.ignition === false) {
-    events.push({ type: "IGNITION_ON", severity: "info", message: "Ignition turned on" });
-  }
-  if (data.ignition === false && previousPosition?.ignition === true) {
-    events.push({ type: "IGNITION_OFF", severity: "info", message: "Ignition turned off" });
-  }
-  // Built-in movement sensor transitions
-  if (data.movement === true && previousPosition?.movement === false) {
-    events.push({ type: "MOVING", severity: "info", message: "Movement started" });
-  }
-  if (data.movement === false && previousPosition?.movement === true) {
-    events.push({ type: "STOPPED", severity: "info", message: "Movement stopped" });
-  }
-  // GNSS fix lost / restored
-  if (data.satellites !== null && previousPosition?.satellites !== null && previousPosition?.satellites !== undefined) {
-    if (data.satellites === 0 && previousPosition.satellites > 0) {
-      events.push({ type: "GPS_LOST", severity: "warning", message: "GNSS fix lost — no satellites in view" });
-    } else if (data.satellites > 0 && previousPosition.satellites === 0) {
-      events.push({
-        type: "GPS_RESTORED",
-        severity: "info",
-        message: `GNSS fix restored (${data.satellites} satellites)`,
-      });
-    }
-  }
-  if (data.crash) {
-    events.push({
-      type: "CRASH",
-      severity: "critical",
-      message: data.gforce ? `Crash detected (${data.gforce.toFixed(1)}G)` : "Crash detected",
-      metadata: { gforce: data.gforce },
-    });
-  }
-
-  // External power lost/restored — a common tamper/unplug signal
-  if (
-    data.externalPower !== null &&
-    previousPosition?.external_power !== null &&
-    previousPosition?.external_power !== undefined &&
-    data.externalPower !== previousPosition.external_power
-  ) {
-    events.push(
-      data.externalPower
-        ? { type: "POWER_RESTORED", severity: "info", message: "External power restored" }
-        : { type: "POWER_CUT", severity: "critical", message: "External power lost — possible tamper or unplug" },
-    );
-  }
-
-  // Excessive idling
-  if (isIdlingNow && idleAlerted && idleEventDurationMinutes > 0) {
-    events.push({
-      type: "IDLE",
-      severity: "warning",
-      message: `Vehicle idling for over ${Math.round(idleEventDurationMinutes)} minutes`,
-      metadata: { idle_minutes: Math.round(idleEventDurationMinutes) },
-    });
-  }
-
-  // Low battery
-  if (lowBatteryTriggered && batteryThreshold !== null) {
-    events.push({
-      type: "LOW_BATTERY",
-      severity: "warning",
-      message: `Device battery at ${data.battery}% — below the ${batteryThreshold}% threshold`,
-      metadata: { battery: data.battery, threshold: batteryThreshold },
-    });
-  }
-
-  // Geofence containment: track enter/exit and apply geofence-scoped speed zones
-  const { data: geofences } = await supabase
-    .from("geofences")
-    .select("id, name, geometry")
-    .eq("organization_id", orgId)
-    .eq("is_active", true);
-
-  const insideGeofenceIds: string[] = [];
-  const insideGeofenceNames = new Map<string, string>();
-
-  for (const gf of geofences ?? []) {
-    if (gf.geometry?.type !== "circle") continue;
-    const { center, radius } = gf.geometry.coordinates;
-    const distanceKm = haversineKm(center[0], center[1], data.latitude, data.longitude);
-    if (distanceKm * 1000 <= radius) {
-      insideGeofenceIds.push(gf.id);
-      insideGeofenceNames.set(gf.id, gf.name);
-    }
-  }
-
-  if (geofences && geofences.length > 0) {
-    const { data: states } = await supabase
-      .from("geofence_states")
-      .select("geofence_id, inside")
-      .eq("device_id", device.id);
-
-    const stateByGeofence = new Map((states ?? []).map((s: { geofence_id: string; inside: boolean }) => [s.geofence_id, s.inside]));
-
-    for (const gf of geofences) {
-      const nowInside = insideGeofenceIds.includes(gf.id);
-      const wasInside = stateByGeofence.get(gf.id) ?? false;
-      if (nowInside !== wasInside) {
-        events.push({
-          type: nowInside ? "GEOFENCE_ENTER" : "GEOFENCE_EXIT",
-          severity: "info",
-          message: `Vehicle ${nowInside ? "entered" : "exited"} ${gf.name}`,
-          metadata: { geofence_id: gf.id, geofence_name: gf.name },
-        });
-        await supabase
-          .from("geofence_states")
-          .upsert(
-            { device_id: device.id, geofence_id: gf.id, organization_id: orgId, inside: nowInside },
-            { onConflict: "device_id,geofence_id" },
-          );
-      }
-    }
-  }
-
-  // Overspeed check — a geofence-scoped speed zone takes priority over the org-wide limit
-  if (data.speed_kmh !== null) {
-    const { data: speedRules } = await supabase
-      .from("alert_rules")
-      .select("speed_limit, geofence_id")
-      .eq("organization_id", orgId)
-      .eq("type", "OVERSPEED")
-      .eq("enabled", true)
-      .not("speed_limit", "is", null);
-
-    const zoneRule = (speedRules ?? []).find(
-      (r: { geofence_id: string | null }) => r.geofence_id && insideGeofenceIds.includes(r.geofence_id),
-    );
-    const globalRule = (speedRules ?? []).find((r: { geofence_id: string | null }) => !r.geofence_id);
-    const activeRule = zoneRule ?? globalRule;
-
-    if (activeRule?.speed_limit && data.speed_kmh > activeRule.speed_limit) {
-      const zoneName = zoneRule ? insideGeofenceNames.get(zoneRule.geofence_id) : null;
-      events.push({
-        type: "OVERSPEED",
-        severity: "warning",
-        message: zoneName
-          ? `Speed ${data.speed_kmh} km/h exceeds ${zoneName} zone limit of ${activeRule.speed_limit} km/h`
-          : `Speed ${data.speed_kmh} km/h exceeds limit of ${activeRule.speed_limit} km/h`,
-        metadata: { limit: activeRule.speed_limit, geofence_id: zoneRule?.geofence_id ?? null },
-      });
-    }
-  }
-
-  if (events.length > 0) {
-    const { error: eventsError } = await supabase.from("device_events").insert(
-      events.map((e) => ({
-        organization_id: orgId,
-        device_id: device.id,
-        vehicle_id: vehicleId,
-        type: e.type,
-        severity: e.severity,
-        message: e.message,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        speed: data.speed_kmh,
-        metadata: e.metadata ?? {},
-      })),
-    );
-    if (eventsError) console.error("[ingest] failed to insert device events", eventsError);
-
-    // Critical events also surface as actionable alerts in the notification inbox
-    const criticalTypes = ["PANIC", "CRASH", "TOWING", "JAMMING", "ALARM", "POWER_CUT", "LOW_BATTERY"];
-    const criticalEvents = events.filter((e) => criticalTypes.includes(e.type));
-    if (criticalEvents.length > 0) {
-      const { error: alertsError } = await supabase.from("alerts").insert(
-        criticalEvents.map((e) => ({
-          organization_id: orgId,
-          device_id: device.id,
-          vehicle_id: vehicleId,
-          type: e.type,
-          severity: e.severity,
-          message: e.message,
-          latitude: data.latitude,
-          longitude: data.longitude,
-        })),
-      );
-      if (alertsError) console.error("[ingest] failed to insert alerts", alertsError);
-
-      try {
-        await sendCriticalAlertEmails(supabase, orgId, criticalEvents, {
-          vehicleId,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          recordedAt: position.recorded_at,
-        });
-      } catch (err) {
-        console.error("[ingest] alert email dispatch failed", err);
-      }
-    }
-  }
-
-  // Odometer & engine-hour tracking, feeding telemetry-driven maintenance triggers
-  if (vehicleId) {
-    const { data: vehicle } = await supabase
-      .from("vehicles")
-      .select("odometer, engine_hours")
-      .eq("id", vehicleId)
-      .maybeSingle();
-
-    if (vehicle) {
-      let newOdometer = vehicle.odometer ?? 0;
-      let newEngineHours = vehicle.engine_hours ?? 0;
-
-      if (data.odometerKm !== null) {
-        newOdometer = data.odometerKm;
-      } else if (previousPosition) {
-        const deltaKm = haversineKm(
-          previousPosition.latitude,
-          previousPosition.longitude,
-          data.latitude,
-          data.longitude,
-        );
-        // Ignore implausible GPS jumps (e.g. cold-start fix drift) between pings.
-        if (deltaKm > 0 && deltaKm < 5) newOdometer = Number((newOdometer + deltaKm).toFixed(2));
-      }
-
-      if (data.engineHours !== null) {
-        newEngineHours = data.engineHours;
-      } else if (previousPosition?.recorded_at && data.ignition) {
-        const elapsedHours =
-          (recordedAt.getTime() - new Date(previousPosition.recorded_at).getTime()) / 3_600_000;
-        if (elapsedHours > 0 && elapsedHours < 1) {
-          newEngineHours = Number((newEngineHours + elapsedHours).toFixed(2));
-        }
-      }
-
-      if (newOdometer !== vehicle.odometer || newEngineHours !== vehicle.engine_hours) {
-        await supabase
-          .from("vehicles")
-          .update({ odometer: newOdometer, engine_hours: newEngineHours })
-          .eq("id", vehicleId);
-      }
-
-      try {
-        await markMaintenanceOverdue(supabase, orgId, vehicleId, newOdometer, newEngineHours);
-        await checkMaintenanceTriggers(supabase, orgId, vehicleId, newOdometer, newEngineHours);
-      } catch (err) {
-        console.error("[ingest] maintenance trigger check failed", err);
-      }
-
-      // Automatic trip detection from ignition transitions
-      try {
-        await syncAutoTrip({
-          supabase,
-          orgId,
-          vehicleId,
-          ignition: data.ignition,
-          previousIgnition: previousPosition?.ignition ?? null,
-          recordedAt,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          currentOdometer: newOdometer,
-        });
-      } catch (err) {
-        console.error("[ingest] auto trip sync failed", err);
-      }
-    }
-
-    // iButton driver identification: reassign the active driver on this vehicle
-    if (data.ibutton) {
-      try {
-        await identifyDriver(supabase, orgId, device.id, vehicleId, data.ibutton, data.latitude, data.longitude);
-      } catch (err) {
-        console.error("[ingest] driver identification failed", err);
-      }
-    }
-  }
-
-  // Temperature / humidity sensor readings (1-Wire probe or BLE beacon)
-  if (data.temperature !== null || data.humidity !== null) {
+  // Critical events also surface as actionable alerts in the notification inbox
+  const criticalEvents = Array.isArray(result.critical_events) ? result.critical_events : [];
+  if (criticalEvents.length > 0) {
     try {
-      await recordSensorReadings(supabase, orgId, device.id, {
-        TEMPERATURE: data.temperature,
-        HUMIDITY: data.humidity,
+      await sendCriticalAlertEmails(supabase, result.organization_id!, criticalEvents, {
+        vehicleId: result.vehicle_id ?? null,
+        latitude: result.latitude!,
+        longitude: result.longitude!,
+        recordedAt: result.recorded_at!,
       });
     } catch (err) {
-      console.error("[ingest] sensor reading capture failed", err);
+      console.error("[ingest] alert email dispatch failed", err);
     }
-  }
-
-  // Deliver any pending remote engine control command (relay output) to the collector.
-  // The collector is expected to send the corresponding Codec12 command to the device
-  // on its next contact; we optimistically mark it sent and reflect the new state.
-  let command: { id: string; command: string } | null = null;
-  const { data: pendingCommand } = await supabase
-    .from("device_commands")
-    .select("id, command")
-    .eq("device_id", device.id)
-    .eq("status", "PENDING")
-    .order("requested_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (pendingCommand) {
-    command = pendingCommand;
-    await supabase
-      .from("device_commands")
-      .update({ status: "SENT", sent_at: now.toISOString() })
-      .eq("id", pendingCommand.id);
-    await supabase
-      .from("gps_devices")
-      .update({ engine_immobilized: pendingCommand.command === "ENGINE_CUT" })
-      .eq("id", device.id);
   }
 
   return corsResponse({
     ok: true,
-    device_id: device.id,
-    recorded_at: position.recorded_at,
-    command: command?.command ?? null,
+    device_id: result.device_id,
+    recorded_at: result.recorded_at,
+    command: result.command ?? null,
   });
 });
-
-/**
- * Automatic trip detection, driven by ignition transitions:
- *  - ignition ON (rising edge)  -> open an IN_PROGRESS trip (defensively closing any
- *    stale one left open by a missed ignition-off, e.g. after signal loss)
- *  - ignition OFF (falling edge) -> close the open trip with end time/location and
- *    distance derived from the vehicle's odometer delta
- *  - trips open longer than 24 h (device kept reporting with ignition on) are split
- */
-async function syncAutoTrip(args: {
-  // deno-lint-ignore no-explicit-any
-  supabase: any;
-  orgId: string;
-  vehicleId: string;
-  ignition: boolean | null;
-  previousIgnition: boolean | null;
-  recordedAt: Date;
-  latitude: number;
-  longitude: number;
-  currentOdometer: number;
-}) {
-  const { supabase, orgId, vehicleId, ignition, previousIgnition, recordedAt, latitude, longitude, currentOdometer } =
-    args;
-
-  if (ignition === null) return;
-
-  const locationLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-
-  const fetchOpenTrip = () =>
-    supabase
-      .from("trips")
-      .select("id, start_time, start_odometer")
-      .eq("vehicle_id", vehicleId)
-      .eq("status", "IN_PROGRESS")
-      .limit(1)
-      .maybeSingle();
-
-  const closeTrip = (tripId: string, startOdometer: number | null) => {
-    const distance =
-      startOdometer !== null && startOdometer !== undefined && currentOdometer >= startOdometer
-        ? Number((currentOdometer - startOdometer).toFixed(2))
-        : null;
-    return supabase
-      .from("trips")
-      .update({
-        end_time: recordedAt.toISOString(),
-        end_location: locationLabel,
-        distance_km: distance,
-        status: "COMPLETED",
-      })
-      .eq("id", tripId);
-  };
-
-  const openTrip = async () => {
-    const { data: driver } = await supabase
-      .from("drivers")
-      .select("id")
-      .eq("vehicle_id", vehicleId)
-      .limit(1)
-      .maybeSingle();
-
-    await supabase.from("trips").insert({
-      organization_id: orgId,
-      vehicle_id: vehicleId,
-      driver_id: driver?.id ?? null,
-      start_time: recordedAt.toISOString(),
-      start_location: locationLabel,
-      start_odometer: currentOdometer,
-      distance_km: 0,
-      status: "IN_PROGRESS",
-      auto_generated: true,
-      notes: "Auto-detected from GPS telemetry (ignition)",
-    });
-  };
-
-  const rising = ignition === true && previousIgnition !== true;
-  const falling = ignition === false && previousIgnition === true;
-
-  if (falling) {
-    const { data: open } = await fetchOpenTrip();
-    if (open) await closeTrip(open.id, open.start_odometer);
-    return;
-  }
-
-  if (rising) {
-    // Close any trip left open by a missed ignition-off before starting a fresh one.
-    const { data: open } = await fetchOpenTrip();
-    if (open) await closeTrip(open.id, open.start_odometer);
-    await openTrip();
-    return;
-  }
-
-  if (ignition === true) {
-    // Split marathon sessions: a trip open for over 24 h is closed and a new one starts.
-    const { data: open } = await fetchOpenTrip();
-    if (open && recordedAt.getTime() - new Date(open.start_time).getTime() > 24 * 3_600_000) {
-      await closeTrip(open.id, open.start_odometer);
-      await openTrip();
-    }
-  }
-}
-
-async function markMaintenanceOverdue(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  orgId: string,
-  vehicleId: string,
-  odometer: number,
-  engineHours: number,
-) {
-  const overdueUpdate = { status: "OVERDUE", updated_at: new Date().toISOString() };
-  const base = () =>
-    supabase
-      .from("maintenance_schedules")
-      .update(overdueUpdate)
-      .eq("organization_id", orgId)
-      .eq("vehicle_id", vehicleId)
-      .eq("status", "SCHEDULED");
-
-  const results = await Promise.all([
-    base().lt("due_date", new Date().toISOString().slice(0, 10)),
-    base().lte("due_odometer", odometer),
-    base().lte("due_engine_hours", engineHours),
-  ]);
-  const failed = results.find((result) => result.error);
-  if (failed?.error) throw failed.error;
-}
-
-async function checkMaintenanceTriggers(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  orgId: string,
-  vehicleId: string,
-  odometer: number,
-  engineHours: number,
-) {
-  const { data: intervals } = await supabase
-    .from("maintenance_intervals")
-    .select("id, service_type, interval_km, interval_days, interval_hours, vehicle_id")
-    .eq("organization_id", orgId)
-    .eq("is_active", true)
-    .or(`vehicle_id.eq.${vehicleId},vehicle_id.is.null`);
-
-  if (!intervals || intervals.length === 0) return;
-
-  for (const interval of intervals) {
-    // An open (scheduled/overdue) auto-generated entry for this service type already covers the next service.
-    const { data: openSchedule } = await supabase
-      .from("maintenance_schedules")
-      .select("id")
-      .eq("vehicle_id", vehicleId)
-      .eq("service_type", interval.service_type)
-      .in("status", ["SCHEDULED", "OVERDUE"])
-      .limit(1)
-      .maybeSingle();
-    if (openSchedule) continue;
-
-    const { data: lastCompleted } = await supabase
-      .from("maintenance_schedules")
-      .select("due_odometer, due_engine_hours, completed_at")
-      .eq("vehicle_id", vehicleId)
-      .eq("service_type", interval.service_type)
-      .eq("status", "COMPLETED")
-      .order("completed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let dueNow = false;
-    let dueOdometer: number | null = null;
-    let dueDate: string | null = null;
-    let dueEngineHours: number | null = null;
-
-    if (interval.interval_km) {
-      const baseline = lastCompleted?.due_odometer ?? 0;
-      dueOdometer = Number((baseline + interval.interval_km).toFixed(2));
-      if (odometer >= dueOdometer) dueNow = true;
-    }
-
-    if (interval.interval_days) {
-      const baseline = lastCompleted?.completed_at ? new Date(lastCompleted.completed_at) : null;
-      if (baseline) {
-        const due = new Date(baseline.getTime() + interval.interval_days * 86_400_000);
-        dueDate = due.toISOString().slice(0, 10);
-        if (Date.now() >= due.getTime()) dueNow = true;
-      }
-    }
-
-    if (interval.interval_hours) {
-      const baselineHours = lastCompleted?.due_engine_hours ?? 0;
-      dueEngineHours = Number((baselineHours + interval.interval_hours).toFixed(2));
-      if (engineHours >= dueEngineHours) dueNow = true;
-    }
-
-    if (dueNow) {
-      await supabase.from("maintenance_schedules").insert({
-        organization_id: orgId,
-        vehicle_id: vehicleId,
-        service_type: interval.service_type,
-        due_date: dueDate,
-        due_odometer: dueOdometer,
-        due_engine_hours: dueEngineHours,
-        status: "SCHEDULED",
-        auto_generated: true,
-        notes: `Auto-generated from telemetry (odometer ${odometer} km, engine hours ${engineHours}).`,
-      });
-    }
-  }
-}
-
-async function identifyDriver(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  orgId: string,
-  deviceId: string,
-  vehicleId: string,
-  ibutton: string,
-  latitude: number,
-  longitude: number,
-) {
-  const { data: driver } = await supabase
-    .from("drivers")
-    .select("id, name, vehicle_id")
-    .eq("organization_id", orgId)
-    .eq("ibutton_id", ibutton)
-    .maybeSingle();
-
-  if (!driver || driver.vehicle_id === vehicleId) return;
-
-  // Free up the vehicle from whoever was previously assigned to it.
-  await supabase.from("drivers").update({ vehicle_id: null }).eq("vehicle_id", vehicleId);
-  await supabase.from("drivers").update({ vehicle_id: vehicleId }).eq("id", driver.id);
-
-  await supabase
-    .from("trips")
-    .update({ driver_id: driver.id })
-    .eq("vehicle_id", vehicleId)
-    .eq("status", "IN_PROGRESS")
-    .is("end_time", null);
-
-  await supabase.from("device_events").insert({
-    organization_id: orgId,
-    device_id: deviceId,
-    vehicle_id: vehicleId,
-    type: "DRIVER_IDENTIFIED",
-    severity: "info",
-    message: `${driver.name} identified via iButton`,
-    latitude,
-    longitude,
-    metadata: { driver_id: driver.id },
-  });
-}
 
 const CRITICAL_EVENT_LABELS: Record<string, string> = {
   PANIC: "Panic / SOS",
@@ -1130,40 +480,5 @@ async function sendCriticalAlertEmails(
     console.error("[ingest] resend email send failed", await res.text());
   } else {
     console.log(`[ingest] critical alert email sent to ${recipients.length} recipient(s)`);
-  }
-}
-
-async function recordSensorReadings(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  orgId: string,
-  deviceId: string,
-  readings: Record<string, number | null>,
-) {
-  for (const [sensorType, value] of Object.entries(readings)) {
-    if (value === null) continue;
-
-    const { data: sensors } = await supabase
-      .from("asset_sensors")
-      .select("id")
-      .eq("device_id", deviceId)
-      .eq("sensor_type", sensorType)
-      .eq("is_active", true);
-
-    if (!sensors || sensors.length === 0) continue;
-
-    const now = new Date().toISOString();
-    for (const sensor of sensors) {
-      await supabase.from("sensor_readings").insert({
-        organization_id: orgId,
-        sensor_id: sensor.id,
-        value,
-        recorded_at: now,
-      });
-      await supabase
-        .from("asset_sensors")
-        .update({ last_value: value, last_reading_at: now })
-        .eq("id", sensor.id);
-    }
   }
 }
