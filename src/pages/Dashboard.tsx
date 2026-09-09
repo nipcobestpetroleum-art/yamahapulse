@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
@@ -116,10 +116,17 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
   const [assignments, setAssignments] = useState<DashboardAsset[] | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [geocodedAddresses, setGeocodedAddresses] = useState<Record<string, string>>({});
+  const geocodingAttempts = useRef(new Set<string>());
 
   useEffect(() => {
     if (Object.keys(positionsByDeviceId).length > 0) setLastRefreshAt(new Date());
   }, [positionsByDeviceId]);
+
+  useEffect(() => {
+    setGeocodedAddresses({});
+    geocodingAttempts.current.clear();
+  }, [organizationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +163,45 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
     ...asset,
     position: positionsByDeviceId[asset.deviceId] ?? null,
   })), [assignments, positionsByDeviceId]);
+
+  useEffect(() => {
+    const unresolved = assets
+      .filter((asset) => {
+        const position = asset.position;
+        if (!position || position.address || geocodedAddresses[asset.deviceId]) return false;
+        return !geocodingAttempts.current.has(`${asset.deviceId}:${position.recorded_at}`);
+      })
+      .slice(0, 25);
+    if (unresolved.length === 0) return;
+
+    unresolved.forEach((asset) => {
+      geocodingAttempts.current.add(`${asset.deviceId}:${asset.position!.recorded_at}`);
+    });
+    let cancelled = false;
+
+    supabase.functions
+      .invoke("reverse-geocode", {
+        body: {
+          organizationId,
+          positions: unresolved.map((asset) => ({
+            deviceId: asset.deviceId,
+            recordedAt: asset.position!.recorded_at,
+            latitude: asset.position!.latitude,
+            longitude: asset.position!.longitude,
+          })),
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data?.addresses) return;
+        setGeocodedAddresses((current) => ({
+          ...current,
+          ...(data.addresses as Record<string, string>),
+        }));
+      });
+
+    return () => { cancelled = true; };
+  }, [assets, geocodedAddresses, organizationId]);
+
   const counts = useMemo(() => {
     const result = { total: assets.length, online: 0, offline: 0, noData: 0, moving: 0, idling: 0, stopped: 0 };
     for (const asset of assets) {
@@ -202,7 +248,41 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         {assignmentError && <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">Unable to load tracker assignments: {assignmentError}</div>}
         {assignments !== null && counts.total > 0 && counts.online === 0 && <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No trackers are reporting fresh GPS data right now. Any markers below are last-known locations and include their GPS timestamp.</div>}
         {assignments !== null && <FleetOperationsMap assets={assets} />}
-        {assignments === null ? <Skeleton className="h-16 rounded-xl" /> : assets.length === 0 ? <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No assigned trackers yet. Assign a GPS device to a vehicle to see live reporting here. <Link to="/devices" className="ml-1 font-medium text-primary hover:underline">Open device management →</Link></div> : <div className="overflow-x-auto rounded-xl border border-border"><div className="min-w-[760px]"><div className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] gap-3 border-b border-border bg-background/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Asset</span><span>Status</span><span>Speed</span><span>Last location</span><span>GPS timestamp</span></div>{assets.map((asset) => { const position = asset.position; const status = getTelemetryStatus(position); const location = position ? position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : "No location data"; return <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5"><div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div><Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge><span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span><span className="max-w-[220px] truncate text-xs text-muted-foreground"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</span><span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span></Link>; })}</div></div>}
+        {assignments === null ? (
+          <Skeleton className="h-16 rounded-xl" />
+        ) : assets.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            No assigned trackers yet. Assign a GPS device to a vehicle to see live reporting here.
+            <Link to="/devices" className="ml-1 font-medium text-primary hover:underline">Open device management →</Link>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] gap-3 border-b border-border bg-background/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Asset</span><span>Status</span><span>Speed</span><span>Last location</span><span>GPS timestamp</span>
+              </div>
+              {assets.map((asset) => {
+                const position = asset.position;
+                const status = getTelemetryStatus(position);
+                const coordinates = position ? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : null;
+                const location = position
+                  ? position.address ?? geocodedAddresses[asset.deviceId] ?? coordinates
+                  : "No location data";
+                return (
+                  <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5">
+                    <div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div>
+                    <Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge>
+                    <span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span>
+                    <span className="max-w-[220px] text-xs text-muted-foreground" title={coordinates ?? undefined}>
+                      <MapPin className="mr-1 inline h-3.5 w-3.5" />{location}
+                    </span>
+                    <span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
