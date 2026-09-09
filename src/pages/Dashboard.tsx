@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import type { LatLngExpression } from "leaflet";
 import { format } from "date-fns";
 import {
   Activity,
@@ -22,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { VehicleStatusBadge } from "@/components/status-badge";
 import { CriticalEventsWidget } from "@/components/dashboard/critical-events-widget";
+import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-icon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useLivePositions } from "@/hooks/use-live-positions";
@@ -82,6 +85,25 @@ interface DashboardAsset {
   vehicleName: string;
   registration: string | null;
   position: LatestPosition | null;
+}
+
+function FitDashboardMap({ assets }: { assets: DashboardAsset[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const points = assets
+      .map((asset) => asset.position && Number.isFinite(asset.position.latitude) && Number.isFinite(asset.position.longitude) ? [asset.position.latitude, asset.position.longitude] as LatLngExpression : null)
+      .filter(Boolean) as LatLngExpression[];
+    if (points.length === 0) return;
+    map.fitBounds(points as any, { padding: [24, 24], maxZoom: 13 });
+  }, [assets, map]);
+  return null;
+}
+
+function FleetOperationsMap({ assets }: { assets: DashboardAsset[] }) {
+  const positioned = assets.filter((asset) => asset.position && Number.isFinite(asset.position.latitude) && Number.isFinite(asset.position.longitude));
+  if (positioned.length === 0) return <div className="flex h-[300px] items-center justify-center rounded-xl border border-dashed border-border bg-background/30 text-sm text-muted-foreground">No tracker has reported a mappable location yet.</div>;
+  const center: LatLngExpression = [positioned[0].position!.latitude, positioned[0].position!.longitude];
+  return <div className="overflow-hidden rounded-xl border border-border"><MapContainer center={center} zoom={12} className="h-[300px] w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitDashboardMap assets={positioned} />{positioned.map((asset) => { const position = asset.position!; return <Marker key={asset.deviceId} position={[position.latitude, position.longitude]} icon={createVehicleMarkerIcon({ courseDeg: position.course, speedKmh: position.speed, isOffline: getTelemetryStatus(position) === "OFFLINE" })} />; })}</MapContainer></div>;
 }
 
 function FleetOperationsCard({ organizationId }: { organizationId: string }) {
@@ -155,6 +177,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         <div className="flex flex-wrap gap-2 text-xs">
           {(["MOVING", "IDLING", "STOPPED"] as TelemetryStatus[]).map((status) => <Link key={status} to={`/fleet/live?status=${status.toLowerCase()}`} className={`rounded-full border px-3 py-1.5 font-medium ${TELEMETRY_STATUS_STYLES[status]}`}>{TELEMETRY_STATUS_LABELS[status]} <span className="ml-1 opacity-70">{counts[status.toLowerCase() as "moving" | "idling" | "stopped"]}</span></Link>)}
         </div>
+        {assignments !== null && <FleetOperationsMap assets={assets} />}
         {assignments === null ? <Skeleton className="h-16 rounded-xl" /> : assets.length === 0 ? <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No assigned trackers yet. Assign a GPS device to a vehicle to see live reporting here.</div> : <div className="overflow-x-auto rounded-xl border border-border"><div className="min-w-[760px]"><div className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] gap-3 border-b border-border bg-background/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Asset</span><span>Status</span><span>Speed</span><span>Last location</span><span>GPS timestamp</span></div>{assets.map((asset) => { const position = asset.position; const status = getTelemetryStatus(position); const location = position ? position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : "No location data"; return <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5"><div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div><Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge><span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span><span className="max-w-[220px] truncate text-xs text-muted-foreground"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</span><span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span></Link>; })}</div></div>}
       </CardContent>
     </Card>
