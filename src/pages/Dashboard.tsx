@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { format } from "date-fns";
 import {
@@ -103,7 +103,7 @@ function FleetOperationsMap({ assets }: { assets: DashboardAsset[] }) {
   const positioned = assets.filter((asset) => asset.position && Number.isFinite(asset.position.latitude) && Number.isFinite(asset.position.longitude));
   if (positioned.length === 0) return <div className="flex h-[300px] items-center justify-center rounded-xl border border-dashed border-border bg-background/30 text-sm text-muted-foreground">No tracker has reported a mappable location yet.</div>;
   const center: LatLngExpression = [positioned[0].position!.latitude, positioned[0].position!.longitude];
-  return <div className="overflow-hidden rounded-xl border border-border"><MapContainer center={center} zoom={12} className="h-[300px] w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitDashboardMap assets={positioned} />{positioned.map((asset) => { const position = asset.position!; return <Marker key={asset.deviceId} position={[position.latitude, position.longitude]} icon={createVehicleMarkerIcon({ courseDeg: position.course, speedKmh: position.speed, isOffline: getTelemetryStatus(position) === "OFFLINE" })} />; })}</MapContainer></div>;
+  return <div className="relative overflow-hidden rounded-xl border border-border"><MapContainer center={center} zoom={12} className="h-[300px] w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitDashboardMap assets={positioned} />{positioned.map((asset) => { const position = asset.position!; return <Marker key={asset.deviceId} position={[position.latitude, position.longitude]} icon={createVehicleMarkerIcon({ courseDeg: position.course, speedKmh: position.speed, isOffline: getTelemetryStatus(position) === "OFFLINE" })}><Popup><div className="min-w-[210px] space-y-2"><div><p className="font-semibold">{asset.vehicleName}</p><p className="text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div><div className="text-xs"><p><strong>Status:</strong> {TELEMETRY_STATUS_LABELS[getTelemetryStatus(position)]}</p><p><strong>GPS time:</strong> {format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss")}</p><p><strong>Location:</strong> {position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`}</p></div><Link className="text-xs font-semibold text-primary hover:underline" to={`/fleet/live/${asset.deviceId}`}>Open tracker details →</Link></div></Popup></Marker>; })}</MapContainer><div className="pointer-events-none absolute left-3 top-3 rounded-lg border border-border bg-background/85 px-3 py-2 text-[11px] text-muted-foreground shadow-lg backdrop-blur">Map shows the latest GPS location reported by each tracker.</div></div>;
 }
 
 function FleetOperationsCard({ organizationId }: { organizationId: string }) {
