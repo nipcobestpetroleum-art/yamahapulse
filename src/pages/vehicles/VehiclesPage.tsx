@@ -66,6 +66,8 @@ export default function VehiclesPage() {
   const { currentOrg, currentRole, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStatus = searchParams.get("status");
+  const initialStatus = requestedStatus === "ACTIVE" || requestedStatus === "INACTIVE" || requestedStatus === "MAINTENANCE" || requestedStatus === "DECOMMISSIONED" ? requestedStatus : "all";
   const { positionsByDeviceId } = useLivePositions(currentOrg?.id ?? null);
   const [deviceByVehicle, setDeviceByVehicle] = useState<Record<string, string>>({});
 
@@ -73,7 +75,7 @@ export default function VehiclesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
