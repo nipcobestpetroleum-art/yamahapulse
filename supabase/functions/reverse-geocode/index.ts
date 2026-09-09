@@ -21,9 +21,8 @@ interface GoogleGeocodingResponse {
 }
 
 interface GooglePlacesResponse {
-  status: string;
-  error_message?: string;
-  results?: Array<{ name?: string; vicinity?: string }>;
+  places?: Array<{ displayName?: { text?: string } }>;
+  error?: { message?: string };
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -151,19 +150,32 @@ serve(async (req) => {
       }
 
       if (!placeName) {
-        const placesUrl = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
-        placesUrl.searchParams.set("location", `${position.latitude},${position.longitude}`);
-        placesUrl.searchParams.set("rankby", "distance");
-        placesUrl.searchParams.set("type", "establishment");
-        placesUrl.searchParams.set("key", googleApiKey);
-        const response = await fetch(placesUrl);
-        const result = (await response.json()) as GooglePlacesResponse;
-        placeName = result.status === "OK" ? result.results?.[0]?.name : undefined;
-        if (!response.ok || !placeName) {
+        const placesResponse = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": googleApiKey,
+            "X-Goog-FieldMask": "places.displayName",
+          },
+          body: JSON.stringify({
+            includedTypes: ["establishment"],
+            maxResultCount: 1,
+            rankPreference: "DISTANCE",
+            locationRestriction: {
+              circle: {
+                center: { latitude: position.latitude, longitude: position.longitude },
+                radius: 100,
+              },
+            },
+          }),
+        });
+        const result = (await placesResponse.json()) as GooglePlacesResponse;
+        placeName = result.places?.[0]?.displayName?.text;
+        if (!placesResponse.ok || !placeName) {
           console.warn("[reverse-geocode] Google did not return a nearby place", {
             deviceId: position.deviceId,
-            status: result.status,
-            error: result.error_message,
+            status: placesResponse.status,
+            error: result.error?.message,
           });
         }
       }
