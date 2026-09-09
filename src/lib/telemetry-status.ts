@@ -1,13 +1,13 @@
 import type { LatestPosition } from "@/types/database";
 
-export type TelemetryStatus = "MOVING" | "IDLING" | "STOPPED" | "OFFLINE" | "UNKNOWN";
+export type TelemetryStatus = "MOVING" | "IDLING" | "STOPPED" | "OFFLINE" | "NO_DATA" | "UNKNOWN";
 
 const OFFLINE_AFTER_MINUTES = 15;
 const MOVING_SPEED_KMH = 5;
 const STOPPED_SPEED_KMH = 2;
 
 export function getTelemetryStatus(position: Pick<LatestPosition, "speed" | "ignition" | "movement" | "recorded_at"> & { updated_at?: string } | null | undefined, now = Date.now()): TelemetryStatus {
-  if (!position) return "OFFLINE";
+  if (!position) return "NO_DATA";
   // GPS time is authoritative for freshness. `updated_at` only tells us when the
   // database row changed and must not make buffered telemetry look live.
   const timestamp = new Date(position.recorded_at).getTime();
@@ -28,6 +28,7 @@ export const TELEMETRY_STATUS_LABELS: Record<TelemetryStatus, string> = {
   IDLING: "Idling",
   STOPPED: "Stopped",
   OFFLINE: "Offline",
+  NO_DATA: "No data",
   UNKNOWN: "Unknown",
 };
 
@@ -36,5 +37,6 @@ export const TELEMETRY_STATUS_STYLES: Record<TelemetryStatus, string> = {
   IDLING: "border-sky-500/25 bg-sky-500/10 text-sky-400",
   STOPPED: "border-amber-500/25 bg-amber-500/10 text-amber-400",
   OFFLINE: "border-slate-500/25 bg-slate-500/10 text-slate-400",
+  NO_DATA: "border-rose-500/25 bg-rose-500/10 text-rose-300",
   UNKNOWN: "border-violet-500/25 bg-violet-500/10 text-violet-400",
 };

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Activity,
@@ -61,10 +61,13 @@ function isOffline(latestUpdatedAt: string | null) {
 export default function LiveTrackingPage() {
   const { currentOrg } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const orgId = currentOrg?.id ?? null;
+  const requestedStatus = searchParams.get("status")?.toUpperCase();
+  const initialStatus = requestedStatus === "ONLINE" ? "ONLINE" : requestedStatus === "MOVING" || requestedStatus === "IDLING" || requestedStatus === "STOPPED" || requestedStatus === "OFFLINE" || requestedStatus === "NO-DATA" || requestedStatus === "UNKNOWN" ? requestedStatus.replace("-", "_") as TelemetryStatus : "ALL";
 
   const [search, setSearch] = useReactState("");
-  const [statusFilter, setStatusFilter] = useReactState<TelemetryStatus | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useReactState<TelemetryStatus | "ALL" | "ONLINE">(initialStatus);
   const [selectedKey, setSelectedKey] = useReactState<string | null>(null);
 
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
@@ -153,7 +156,8 @@ export default function LiveTrackingPage() {
     return vehiclesToTrack.filter((v) => {
       const matchesSearch = !q || [v.vehicleName, v.registration ?? "", v.deviceName, v.imei]
         .some((value) => value.toLowerCase().includes(q));
-      const matchesStatus = statusFilter === "ALL" || statusByDevice[v.deviceId] === statusFilter;
+      const currentStatus = statusByDevice[v.deviceId];
+      const matchesStatus = statusFilter === "ALL" || (statusFilter === "ONLINE" ? ["MOVING", "IDLING", "STOPPED"].includes(currentStatus) : currentStatus === statusFilter);
       return matchesSearch && matchesStatus;
     });
   }, [vehiclesToTrack, search, statusFilter, statusByDevice]);
@@ -175,12 +179,13 @@ export default function LiveTrackingPage() {
   }, [filtered, positionsByDeviceId]);
 
   const stats = useMemo(() => {
-    const counts = { tracked: vehiclesToTrack.length, moving: 0, idling: 0, stopped: 0, offline: 0, unknown: 0 };
+    const counts = { tracked: vehiclesToTrack.length, moving: 0, idling: 0, stopped: 0, offline: 0, noData: 0, unknown: 0 };
     for (const status of Object.values(statusByDevice)) {
       if (status === "MOVING") counts.moving += 1;
       else if (status === "IDLING") counts.idling += 1;
       else if (status === "STOPPED") counts.stopped += 1;
       else if (status === "OFFLINE") counts.offline += 1;
+      else if (status === "NO_DATA") counts.noData += 1;
       else counts.unknown += 1;
     }
     return counts;
@@ -294,8 +299,9 @@ export default function LiveTrackingPage() {
 
         <Card className="border-border bg-card/60">
           <CardContent className="flex flex-wrap gap-2 p-3">
-            {(["ALL", "MOVING", "IDLING", "STOPPED", "OFFLINE", "UNKNOWN"] as const).map((tab) => {
-              const count = tab === "ALL" ? stats.tracked : stats[tab.toLowerCase() as keyof typeof stats] ?? 0;
+            {(["ALL", "MOVING", "IDLING", "STOPPED", "OFFLINE", "NO_DATA", "UNKNOWN"] as const).map((tab) => {
+                          const countKey = tab === "NO_DATA" ? "noData" : tab.toLowerCase();
+                          const count = tab === "ALL" ? stats.tracked : stats[countKey as keyof typeof stats] ?? 0;
               return (
                 <button
                   key={tab}

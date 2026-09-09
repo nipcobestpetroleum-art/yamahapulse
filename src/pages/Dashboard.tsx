@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -7,12 +7,16 @@ import {
   Car,
   Cpu,
   Link2,
+  MapPin,
+  Radio,
+  WifiOff,
   Package,
   Plus,
   Wrench,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
@@ -20,7 +24,9 @@ import { VehicleStatusBadge } from "@/components/status-badge";
 import { CriticalEventsWidget } from "@/components/dashboard/critical-events-widget";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import type { Vehicle, VehicleStatus } from "@/types/database";
+import { useLivePositions } from "@/hooks/use-live-positions";
+import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES, type TelemetryStatus } from "@/lib/telemetry-status";
+import type { LatestPosition, Vehicle, VehicleStatus } from "@/types/database";
 
 interface DashStats {
   vehiclesTotal: number;
@@ -64,6 +70,92 @@ function KpiCard({
           <p className="text-2xl font-bold tracking-tight">{value}</p>
           {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface DashboardAsset {
+  deviceId: string;
+  deviceName: string;
+  imei: string;
+  vehicleName: string;
+  registration: string | null;
+  position: LatestPosition | null;
+}
+
+function FleetOperationsCard({ organizationId }: { organizationId: string }) {
+  const { positionsByDeviceId, loading: positionsLoading } = useLivePositions(organizationId);
+  const [assignments, setAssignments] = useState<DashboardAsset[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("device_assignments")
+      .select("device_id, device:gps_devices!device_assignments_device_id_fkey(id,name,imei), vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number)")
+      .eq("organization_id", organizationId)
+      .is("unassigned_at", null)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const rows = (data ?? []) as unknown as {
+          device_id: string;
+          device: { id: string; name: string; imei: string } | null;
+          vehicle: { id: string; name: string; registration_number: string | null } | null;
+        }[];
+        setAssignments(rows.filter((row) => row.device && row.vehicle).map((row) => ({
+          deviceId: row.device!.id,
+          deviceName: row.device!.name,
+          imei: row.device!.imei,
+          vehicleName: row.vehicle!.name,
+          registration: row.vehicle!.registration_number,
+          position: null,
+        })));
+      });
+    return () => { cancelled = true; };
+  }, [organizationId]);
+
+  const assets = useMemo(() => (assignments ?? []).map((asset) => ({
+    ...asset,
+    position: positionsByDeviceId[asset.deviceId] ?? null,
+  })), [assignments, positionsByDeviceId]);
+  const counts = useMemo(() => {
+    const result = { total: assets.length, online: 0, offline: 0, noData: 0, moving: 0, idling: 0, stopped: 0 };
+    for (const asset of assets) {
+      if (!asset.position) { result.noData += 1; continue; }
+      const status = getTelemetryStatus(asset.position);
+      if (status === "OFFLINE") result.offline += 1;
+      else if (status === "MOVING") { result.online += 1; result.moving += 1; }
+      else if (status === "IDLING") { result.online += 1; result.idling += 1; }
+      else if (status === "STOPPED") { result.online += 1; result.stopped += 1; }
+      else result.offline += 1;
+    }
+    return result;
+  }, [assets]);
+
+  const summary = [
+    { label: "Fleet size", value: counts.total, icon: Car, href: "/fleet/live", style: "text-foreground" },
+    { label: "Online", value: counts.online, icon: Radio, href: "/fleet/live?status=online", style: "text-emerald-400" },
+    { label: "Offline", value: counts.offline, icon: WifiOff, href: "/fleet/live?status=offline", style: "text-slate-300" },
+    { label: "No data", value: counts.noData, icon: WifiOff, href: "/fleet/live?status=no-data", style: "text-rose-300" },
+  ];
+
+  return (
+    <Card className="mt-6 border-border bg-card/60">
+      <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle className="text-base font-semibold">Fleet operations</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">See which trackers are reporting and where they last reported.</p>
+        </div>
+        <Link to="/fleet/live" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">Open live fleet <ArrowRight className="h-3 w-3" /></Link>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {summary.map((item) => { const Icon = item.icon; return <Link key={item.label} to={item.href} className="rounded-xl border border-border bg-background/40 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className={`h-4 w-4 ${item.style}`} />{item.label}</div><p className={`mt-1 text-2xl font-bold ${item.style}`}>{positionsLoading && assignments === null ? "—" : item.value}</p></Link>; })}
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {(["MOVING", "IDLING", "STOPPED"] as TelemetryStatus[]).map((status) => <Link key={status} to={`/fleet/live?status=${status.toLowerCase()}`} className={`rounded-full border px-3 py-1.5 font-medium ${TELEMETRY_STATUS_STYLES[status]}`}>{TELEMETRY_STATUS_LABELS[status]} <span className="ml-1 opacity-70">{counts[status.toLowerCase() as "moving" | "idling" | "stopped"]}</span></Link>)}
+        </div>
+        {assignments === null ? <Skeleton className="h-16 rounded-xl" /> : assets.length === 0 ? <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No assigned trackers yet. Assign a GPS device to a vehicle to see live reporting here.</div> : <div className="overflow-x-auto rounded-xl border border-border"><div className="min-w-[760px]"><div className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] gap-3 border-b border-border bg-background/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Asset</span><span>Status</span><span>Speed</span><span>Last location</span><span>GPS timestamp</span></div>{assets.map((asset) => { const position = asset.position; const status = getTelemetryStatus(position); const location = position ? position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : "No location data"; return <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5"><div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div><Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge><span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span><span className="max-w-[220px] truncate text-xs text-muted-foreground"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</span><span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span></Link>; })}</div></div>}
       </CardContent>
     </Card>
   );
@@ -173,6 +265,8 @@ export default function Dashboard() {
             <KpiCard icon={Cpu} label="GPS devices" value={stats.devicesTotal} sub={`${stats.devicesInStock} in stock`} />
             <KpiCard icon={Link2} label="Assigned devices" value={stats.devicesAssigned} sub={`${stats.devicesFaulty} faulty`} />
           </div>
+
+          <FleetOperationsCard organizationId={currentOrg.id} />
 
           <div className="mt-6 grid gap-4 lg:grid-cols-5">
             <Card className="border-border bg-card/60 lg:col-span-2">
