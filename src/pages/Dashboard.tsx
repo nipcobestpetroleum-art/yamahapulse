@@ -12,6 +12,7 @@ import {
   Link2,
   MapPin,
   Radio,
+  RefreshCw,
   WifiOff,
   Package,
   Plus,
@@ -108,8 +109,9 @@ function FleetOperationsMap({ assets }: { assets: DashboardAsset[] }) {
 }
 
 function FleetOperationsCard({ organizationId }: { organizationId: string }) {
-  const { positionsByDeviceId, loading: positionsLoading } = useLivePositions(organizationId);
+  const { positionsByDeviceId, loading: positionsLoading, refetch: refetchPositions } = useLivePositions(organizationId);
   const [assignments, setAssignments] = useState<DashboardAsset[] | null>(null);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -123,8 +125,13 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
       .select("device_id, device:gps_devices!device_assignments_device_id_fkey(id,name,imei), vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number)")
       .eq("organization_id", organizationId)
       .is("unassigned_at", null)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        if (error) {
+          setAssignmentError(error.message);
+          setAssignments([]);
+          return;
+        }
         const rows = (data ?? []) as unknown as {
           device_id: string;
           device: { id: string; name: string; imei: string } | null;
@@ -175,7 +182,12 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
           <p className="mt-1 text-xs text-muted-foreground">See which trackers are reporting and where they last reported.</p>
           <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground"><Clock3 className="h-3 w-3" />{lastRefreshAt ? `Data refreshed ${format(lastRefreshAt, "dd MMM yyyy, HH:mm:ss")}` : positionsLoading ? "Connecting to live telemetry…" : "No telemetry received yet"}</p>
         </div>
-        <Link to="/fleet/live" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">Open live fleet <ArrowRight className="h-3 w-3" /></Link>
+        <div className="flex items-center gap-3">
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetchPositions()} disabled={positionsLoading}>
+            <RefreshCw className={`mr-2 h-3.5 w-3.5 ${positionsLoading ? "animate-spin" : ""}`} /> Refresh data
+          </Button>
+          <Link to="/fleet/live" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">Open live fleet <ArrowRight className="h-3 w-3" /></Link>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -184,6 +196,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         <div className="flex flex-wrap gap-2 text-xs">
           {(["MOVING", "IDLING", "STOPPED"] as TelemetryStatus[]).map((status) => <Link key={status} to={`/fleet/live?status=${status.toLowerCase()}`} className={`rounded-full border px-3 py-1.5 font-medium ${TELEMETRY_STATUS_STYLES[status]}`}>{TELEMETRY_STATUS_LABELS[status]} <span className="ml-1 opacity-70">{counts[status.toLowerCase() as "moving" | "idling" | "stopped"]}</span></Link>)}
         </div>
+        {assignmentError && <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">Unable to load tracker assignments: {assignmentError}</div>}
         {assignments !== null && counts.total > 0 && counts.online === 0 && <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No trackers are reporting fresh GPS data right now. Any markers below are last-known locations and include their GPS timestamp.</div>}
         {assignments !== null && <FleetOperationsMap assets={assets} />}
         {assignments === null ? <Skeleton className="h-16 rounded-xl" /> : assets.length === 0 ? <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No assigned trackers yet. Assign a GPS device to a vehicle to see live reporting here.</div> : <div className="overflow-x-auto rounded-xl border border-border"><div className="min-w-[760px]"><div className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] gap-3 border-b border-border bg-background/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Asset</span><span>Status</span><span>Speed</span><span>Last location</span><span>GPS timestamp</span></div>{assets.map((asset) => { const position = asset.position; const status = getTelemetryStatus(position); const location = position ? position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : "No location data"; return <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5"><div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div><Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge><span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span><span className="max-w-[220px] truncate text-xs text-muted-foreground"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</span><span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span></Link>; })}</div></div>}
