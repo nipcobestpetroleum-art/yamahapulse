@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { FileBarChart, FileDown, FileText, Loader2, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileBarChart, FileDown, FileText, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 import type { DeviceEvent, Driver, MaintenanceSchedule, Trip } from "@/types/database";
 
 type ReportType = "trips" | "drivers" | "events" | "maintenance";
+
+const REPORT_PAGE_SIZE = 25;
 
 const REPORTS: Record<ReportType, { label: string; description: string }> = {
   trips: {
@@ -77,6 +79,7 @@ export default function ReportsPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
+  const [reportPage, setReportPage] = useState(0);
 
   const load = useCallback(async () => {
     if (!currentOrg) return;
@@ -105,6 +108,10 @@ export default function ReportsPage() {
     if (currentOrg) load();
   }, [currentOrg, load]);
 
+  useEffect(() => {
+    setReportPage(0);
+  }, [currentOrg, reportType, from, to, severityFilter]);
+
   const filenameBase = `${reportType}-report-${from}_to_${to}`;
 
   const exportCsv = () => {
@@ -124,7 +131,8 @@ export default function ReportsPage() {
     });
   };
 
-  const previewRows = useMemo(() => result?.rows.slice(0, 50) ?? [], [result]);
+  const previewRows = useMemo(() => result?.rows.slice(reportPage * REPORT_PAGE_SIZE, reportPage * REPORT_PAGE_SIZE + REPORT_PAGE_SIZE) ?? [], [result, reportPage]);
+  const reportPageCount = Math.max(1, Math.ceil((result?.rows.length ?? 0) / REPORT_PAGE_SIZE));
 
   return (
     <div>
@@ -241,7 +249,18 @@ export default function ReportsPage() {
                 <p className="text-sm font-bold tracking-tight">{s.value}</p>
               </div>
             ))}
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {result.rows.length > REPORT_PAGE_SIZE && (
+                <div className="mr-1 flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={reportPage === 0} onClick={() => setReportPage((page) => Math.max(0, page - 1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">Page {reportPage + 1} of {reportPageCount}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={reportPage >= reportPageCount - 1} onClick={() => setReportPage((page) => Math.min(reportPageCount - 1, page + 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               <Button variant="outline" size="sm" className="border-border bg-card/60" onClick={exportCsv}>
                 <FileDown className="mr-2 h-4 w-4" />
                 Export CSV
@@ -288,7 +307,7 @@ export default function ReportsPage() {
           </div>
           {result.rows.length > previewRows.length && (
             <p className="text-xs text-muted-foreground">
-              Showing first {previewRows.length} of {result.rows.length} rows — exports include every row.
+              Showing rows {reportPage * REPORT_PAGE_SIZE + 1}–{Math.min((reportPage + 1) * REPORT_PAGE_SIZE, result.rows.length)} of {result.rows.length} — exports include every row.
             </p>
           )}
         </div>
