@@ -292,6 +292,7 @@ export type Position = {
   altitude: number | null;
   accuracy: number | null;
   address: string | null;
+  place_name: string | null;
   battery_level: number | null;
   ignition: boolean | null;
   door_open: boolean | null;

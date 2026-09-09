@@ -117,6 +117,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
   const [geocodedAddresses, setGeocodedAddresses] = useState<Record<string, string>>({});
+  const [nearbyPlaceNames, setNearbyPlaceNames] = useState<Record<string, string>>({});
   const geocodingAttempts = useRef(new Set<string>());
 
   useEffect(() => {
@@ -125,6 +126,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
 
   useEffect(() => {
     setGeocodedAddresses({});
+    setNearbyPlaceNames({});
     geocodingAttempts.current.clear();
   }, [organizationId]);
 
@@ -168,7 +170,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
     const unresolved = assets
       .filter((asset) => {
         const position = asset.position;
-        if (!position || position.address || geocodedAddresses[asset.deviceId]) return false;
+        if (!position || (position.address && position.place_name) || (geocodedAddresses[asset.deviceId] && nearbyPlaceNames[asset.deviceId])) return false;
         return !geocodingAttempts.current.has(`${asset.deviceId}:${position.recorded_at}`);
       })
       .slice(0, 25);
@@ -192,15 +194,23 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         },
       })
       .then(({ data, error }) => {
-        if (cancelled || error || !data?.addresses) return;
-        setGeocodedAddresses((current) => ({
-          ...current,
-          ...(data.addresses as Record<string, string>),
-        }));
+        if (cancelled || error || !data) return;
+        if (data.addresses) {
+          setGeocodedAddresses((current) => ({
+            ...current,
+            ...(data.addresses as Record<string, string>),
+          }));
+        }
+        if (data.placeNames) {
+          setNearbyPlaceNames((current) => ({
+            ...current,
+            ...(data.placeNames as Record<string, string>),
+          }));
+        }
       });
 
     return () => { cancelled = true; };
-  }, [assets, geocodedAddresses, organizationId]);
+  }, [assets, geocodedAddresses, nearbyPlaceNames, organizationId]);
 
   const counts = useMemo(() => {
     const result = { total: assets.length, online: 0, offline: 0, noData: 0, moving: 0, idling: 0, stopped: 0 };
@@ -273,9 +283,12 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
                     <div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div>
                     <Badge variant="outline" className={`w-fit ${position ? TELEMETRY_STATUS_STYLES[status] : "border-rose-500/25 bg-rose-500/10 text-rose-300"}`}>{position ? TELEMETRY_STATUS_LABELS[status] : "No data"}</Badge>
                     <span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span>
-                    <span className="max-w-[220px] text-xs text-muted-foreground" title={coordinates ?? undefined}>
-                      <MapPin className="mr-1 inline h-3.5 w-3.5" />{location}
-                    </span>
+                    <div className="max-w-[220px] min-w-0 text-xs text-muted-foreground" title={coordinates ?? undefined}>
+                      <p className="truncate"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</p>
+                      {position && (position.place_name ?? nearbyPlaceNames[asset.deviceId]) && (
+                        <p className="mt-0.5 truncate pl-5 text-[10px] font-medium text-primary/80">{position.place_name ?? nearbyPlaceNames[asset.deviceId]}</p>
+                      )}
+                    </div>
                     <span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span>
                   </Link>
                 );

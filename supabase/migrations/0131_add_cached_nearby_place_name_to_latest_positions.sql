@@ -1,0 +1,1 @@
+ALTER TABLE public.latest_positions ADD COLUMN IF NOT EXISTS place_name text;

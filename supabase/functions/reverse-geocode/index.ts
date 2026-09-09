@@ -20,6 +20,12 @@ interface GoogleGeocodingResponse {
   results?: Array<{ formatted_address?: string }>;
 }
 
+interface GooglePlacesResponse {
+  status: string;
+  error_message?: string;
+  results?: Array<{ name?: string; vicinity?: string }>;
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -98,7 +104,7 @@ serve(async (req) => {
   const deviceIds = [...new Set(requestedPositions.map((position) => position.deviceId))];
   const { data: latestRows, error: latestError } = await admin
     .from("latest_positions")
-    .select("device_id,recorded_at,latitude,longitude,address")
+    .select("device_id,recorded_at,latitude,longitude,address,place_name")
     .eq("organization_id", organizationId)
     .in("device_id", deviceIds);
   if (latestError) {
@@ -118,50 +124,73 @@ serve(async (req) => {
   });
 
   const addresses: Record<string, string> = {};
+  const placeNames: Record<string, string> = {};
   let failures = 0;
 
   for (const position of eligible) {
     const current = latestByDevice.get(position.deviceId)!;
-    if (current.address) {
-      addresses[position.deviceId] = current.address;
-      continue;
-    }
-
-    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-    url.searchParams.set("latlng", `${position.latitude},${position.longitude}`);
-    url.searchParams.set("key", googleApiKey);
+    let address = current.address ?? undefined;
+    let placeName = current.place_name ?? undefined;
 
     try {
-      const response = await fetch(url);
-      const result = (await response.json()) as GoogleGeocodingResponse;
-      const address = result.status === "OK" ? result.results?.[0]?.formatted_address : undefined;
-      if (!response.ok || !address) {
-        failures += 1;
-        console.warn("[reverse-geocode] Google did not return an address", {
-          deviceId: position.deviceId,
-          status: result.status,
-          error: result.error_message,
-        });
-        continue;
+      if (!address) {
+        const geocodeUrl = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+        geocodeUrl.searchParams.set("latlng", `${position.latitude},${position.longitude}`);
+        geocodeUrl.searchParams.set("key", googleApiKey);
+        const response = await fetch(geocodeUrl);
+        const result = (await response.json()) as GoogleGeocodingResponse;
+        address = result.status === "OK" ? result.results?.[0]?.formatted_address : undefined;
+        if (!response.ok || !address) {
+          failures += 1;
+          console.warn("[reverse-geocode] Google did not return an address", {
+            deviceId: position.deviceId,
+            status: result.status,
+            error: result.error_message,
+          });
+        }
       }
 
-      addresses[position.deviceId] = address;
+      if (!placeName) {
+        const placesUrl = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
+        placesUrl.searchParams.set("location", `${position.latitude},${position.longitude}`);
+        placesUrl.searchParams.set("rankby", "distance");
+        placesUrl.searchParams.set("type", "establishment");
+        placesUrl.searchParams.set("key", googleApiKey);
+        const response = await fetch(placesUrl);
+        const result = (await response.json()) as GooglePlacesResponse;
+        placeName = result.status === "OK" ? result.results?.[0]?.name : undefined;
+        if (!response.ok || !placeName) {
+          console.warn("[reverse-geocode] Google did not return a nearby place", {
+            deviceId: position.deviceId,
+            status: result.status,
+            error: result.error_message,
+          });
+        }
+      }
+
+      if (address) addresses[position.deviceId] = address;
+      if (placeName) placeNames[position.deviceId] = placeName;
+      if (!address && !placeName) continue;
+
+      const cache: Record<string, string> = {};
+      if (address) cache.address = address;
+      if (placeName) cache.place_name = placeName;
       const [latestUpdate, historyUpdate] = await Promise.all([
         admin
           .from("latest_positions")
-          .update({ address })
+          .update(cache)
           .eq("organization_id", organizationId)
           .eq("device_id", position.deviceId)
           .eq("recorded_at", position.recordedAt),
         admin
           .from("positions")
-          .update({ address })
+          .update(cache)
           .eq("organization_id", organizationId)
           .eq("device_id", position.deviceId)
           .eq("recorded_at", position.recordedAt),
       ]);
       if (latestUpdate.error || historyUpdate.error) {
-        console.error("[reverse-geocode] address cache update failed", {
+        console.error("[reverse-geocode] location cache update failed", {
           deviceId: position.deviceId,
           latestError: latestUpdate.error,
           historyError: historyUpdate.error,
@@ -178,7 +207,8 @@ serve(async (req) => {
     organizationId,
     requested: requestedPositions.length,
     resolved: Object.keys(addresses).length,
+    nearbyPlaces: Object.keys(placeNames).length,
     failures,
   });
-  return jsonResponse({ addresses, failures });
+  return jsonResponse({ addresses, placeNames, failures });
 });
