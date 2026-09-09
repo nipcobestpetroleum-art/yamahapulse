@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -36,9 +47,12 @@ const TIMEZONES = [
 ];
 
 export default function OrganizationPage() {
-  const { currentOrg, currentRole, refreshMemberships } = useAuth();
+  const { currentOrg, currentRole, refreshMemberships, signOut } = useAuth();
   const canEdit = hasAnyRole(currentRole, ADMIN_ROLES);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
 
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -48,6 +62,10 @@ export default function OrganizationPage() {
   const [country, setCountry] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   const [alertEmails, setAlertEmails] = useState("");
+  const [entitlements, setEntitlements] = useState<{
+    limits: Record<string, number>;
+    usage: Record<string, number>;
+  } | null>(null);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -59,6 +77,9 @@ export default function OrganizationPage() {
     setCountry(currentOrg.country ?? "");
     setTimezone(currentOrg.timezone ?? "UTC");
     setAlertEmails((currentOrg.alert_emails ?? []).join(", "));
+    void supabase
+      .rpc("organization_entitlements", { p_organization_id: currentOrg.id })
+      .then(({ data }) => setEntitlements(data as typeof entitlements));
   }, [currentOrg]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,6 +109,44 @@ export default function OrganizationPage() {
     }
     await refreshMemberships();
     showSuccess("Organization updated");
+  };
+
+  const handleExport = async () => {
+    if (!currentOrg) return;
+    setExporting(true);
+    const { data, error } = await supabase.rpc("export_organization_data", {
+      p_organization_id: currentOrg.id,
+    });
+    setExporting(false);
+    if (error) {
+      showError(error.message);
+      return;
+    }
+    const result = data as { request_id: string; data: unknown };
+    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${currentOrg.slug}-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showSuccess("Organization data export downloaded");
+  };
+
+  const handleDelete = async () => {
+    if (!currentOrg || confirmation !== currentOrg.name) return;
+    setDeleting(true);
+    const { error } = await supabase.rpc("delete_organization_data", {
+      p_organization_id: currentOrg.id,
+      p_confirmation: confirmation,
+    });
+    setDeleting(false);
+    if (error) {
+      showError(error.message);
+      return;
+    }
+    showSuccess("Organization deleted");
+    await signOut();
   };
 
   return (
@@ -217,6 +276,86 @@ export default function OrganizationPage() {
               <span className="text-sm text-muted-foreground">Workspace slug</span>
               <span className="font-mono text-xs text-muted-foreground">{currentOrg?.slug}</span>
             </div>
+            {entitlements && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usage</p>
+                {(["devices", "vehicles", "users"] as const).map((resource) => (
+                  <div key={resource} className="flex items-center justify-between text-xs">
+                    <span className="capitalize text-muted-foreground">{resource}</span>
+                    <span className="tabular-nums">
+                      {entitlements.usage[resource]} / {entitlements.limits[resource]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/60 lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold">Privacy and data controls</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Export organization data</p>
+              <p className="text-xs text-muted-foreground">
+                Downloads the organization profile, users, fleet records, alerts, events, retained telemetry, and audit data for the last 180 days.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={handleExport} disabled={!canEdit || exporting}>
+              {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Export data
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/30 bg-destructive/5 lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold text-destructive">Danger zone</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Delete this organization</p>
+              <p className="text-xs text-muted-foreground">
+                Permanently deletes the organization and its fleet data. This cannot be undone.
+              </p>
+            </div>
+            <AlertDialog onOpenChange={(open) => !open && setConfirmation("")}>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" disabled={!canEdit}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete organization
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {currentOrg?.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently deletes vehicles, devices, telemetry, alerts, users’ organization memberships, and operational records. Type the exact organization name to continue.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  placeholder={currentOrg?.name}
+                  autoComplete="off"
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void handleDelete();
+                    }}
+                    disabled={deleting || confirmation !== currentOrg?.name}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Permanently delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>
