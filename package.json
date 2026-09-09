@@ -8,6 +8,12 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "test": "npm run test:collector && npm run test:ingest",
+    "test:collector": "COLLECTOR_TEST=1 node --test tests/collector-protocol.test.mjs",
+    "test:ingest": "node --test tests/ingest-regression.test.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "load:dry": "node tests/load-harness.mjs",
+    "load": "DRY_RUN=0 node tests/load-harness.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -377,9 +377,10 @@ async function flushRetries() {
   }
 }
 
-setInterval(() => {
+const retryTimer = setInterval(() => {
   flushRetries().catch(() => {});
 }, RETRY_FLUSH_MS);
+retryTimer.unref();
 
 // Accepts both the batch response ({results: [...]}) and the legacy
 // single-record response ({command}), returning the first pending command.
@@ -482,7 +483,17 @@ const server = net.createServer((socket) => {
   socket.on("close", () => log(`connection closed (${imei ?? remote})`));
 });
 
-server.listen(PORT, () => {
-  log(`listening for Teltonika devices on TCP port ${PORT}`);
-  log(`forwarding to: ${INGEST_URL}`);
-});
+export {
+  buildRecordPayload,
+  codec12CommandPacket,
+  crc16,
+  extractCommand,
+  parseAvlPacket,
+};
+
+if (process.env.COLLECTOR_TEST !== "1") {
+  server.listen(PORT, () => {
+    log(`listening for Teltonika devices on TCP port ${PORT}`);
+    log(`forwarding to: ${INGEST_URL}`);
+  });
+}
