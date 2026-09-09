@@ -56,6 +56,7 @@ import type { DeviceEvent, LatestPosition, Position, Trip } from "@/types/databa
 
 const ONLINE_WINDOW_MS = 10 * 60 * 1000;
 const RAW_PAGE_SIZE = 25;
+const EVENT_PAGE_SIZE = 25;
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -170,6 +171,12 @@ export default function AiReportPage() {
   const [deviceId, setDeviceId] = useState("");
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [eventPage, setEventPage] = useState(0);
+  const [eventTotal, setEventTotal] = useState(0);
+
+  useEffect(() => {
+    setEventPage(0);
+  }, [deviceId]);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -243,11 +250,12 @@ export default function AiReportPage() {
         : Promise.resolve({ data: [] }),
       supabase
         .from("device_events")
-        .select("*")
+        .select("*", { count: "exact" })
+        .eq("organization_id", currentOrg.id)
         .eq("device_id", deviceId)
         .gte("created_at", startOfDay.toISOString())
         .order("created_at", { ascending: false })
-        .limit(500),
+        .range(eventPage * EVENT_PAGE_SIZE, eventPage * EVENT_PAGE_SIZE + EVENT_PAGE_SIZE - 1),
       supabase
         .from("device_events")
         .select("*")
@@ -258,6 +266,12 @@ export default function AiReportPage() {
         .maybeSingle(),
     ]);
 
+    if (todayEventsRes.error) {
+      setLoading(false);
+      showError(todayEventsRes.error.message);
+      return;
+    }
+    setEventTotal(todayEventsRes.count ?? 0);
     setData({
       device,
       latest: (latestRes.data ?? null) as unknown as LatestPosition | null,
@@ -268,7 +282,7 @@ export default function AiReportPage() {
       lastIgnitionOff: (ignitionOffRes.data ?? null) as unknown as DeviceEvent | null,
     });
     setLoading(false);
-  }, [currentOrg, deviceId]);
+  }, [currentOrg, deviceId, eventPage]);
 
   useEffect(() => {
     load();
@@ -311,6 +325,7 @@ export default function AiReportPage() {
   }, [loadRawPage]);
 
   const rawPageCount = Math.max(1, Math.ceil(rawTotal / RAW_PAGE_SIZE));
+  const eventPageCount = Math.max(1, Math.ceil(eventTotal / EVENT_PAGE_SIZE));
 
   const isOnline =
     !!data?.device.last_seen_at &&
@@ -669,7 +684,7 @@ export default function AiReportPage() {
             <TabsList className="bg-card/60">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="events">
-                Events{data.todayEvents.length > 0 ? ` (${data.todayEvents.length})` : ""}
+                Events{eventTotal > 0 ? ` (${eventTotal})` : ""}
               </TabsTrigger>
               <TabsTrigger value="trips">
                 Trips{data.todayTrips.length > 0 ? ` (${data.todayTrips.length})` : ""}
@@ -823,7 +838,21 @@ export default function AiReportPage() {
             {/* ---------- EVENTS TIMELINE ---------- */}
             <TabsContent value="events">
               <Card className="border-border bg-card/60">
-                <CardContent className="pt-6">
+                <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
+                  <CardTitle className="text-sm font-semibold">Event log{eventTotal > 0 ? ` · ${eventTotal.toLocaleString()} events today` : ""}</CardTitle>
+                  {eventTotal > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={eventPage === 0 || loading} onClick={() => setEventPage((page) => Math.max(0, page - 1))}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="whitespace-nowrap text-xs text-muted-foreground">Page {eventPage + 1} of {eventPageCount}</span>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={eventPage >= eventPageCount - 1 || loading} onClick={() => setEventPage((page) => Math.min(eventPageCount - 1, page + 1))}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="pt-4">
                   {timeline.length === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">
                       No events recorded today. New activity appears here automatically.
