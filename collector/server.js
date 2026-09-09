@@ -242,9 +242,9 @@ function codec12CommandPacket(cmd) {
   return packet;
 }
 
-async function forwardToIngest(imei, rec) {
+// Build the wire record for one AVL entry (no imei — the batch carries it).
+function buildRecordPayload(rec) {
   const payload = {
-    imei,
     timestamp: rec.timestamp,
     lat: rec.lat,
     lon: rec.lon,
@@ -279,23 +279,113 @@ async function forwardToIngest(imei, rec) {
   if (rec.batteryCurrentMa !== null) payload.battery_current_ma = rec.batteryCurrentMa;
   if (rec.batteryVoltageMv !== null) payload.battery_voltage_mv = rec.batteryVoltageMv;
   if (rec.extVoltageMv !== null) payload.external_voltage_mv = rec.extVoltageMv;
+  return payload;
+}
 
+// ---------------------------------------------------------------------------
+// Ingest delivery with a bounded retry buffer.
+//
+// Teltonika devices resend records the collector has not ACKed, but we ACK as
+// soon as a packet parses — so this buffer is the safety net when Supabase is
+// unreachable. Per-device ordering is preserved: a new batch for a device with
+// a pending retry is queued behind it.
+// ---------------------------------------------------------------------------
+const RETRY_FLUSH_MS = 15_000;
+const RETRY_MAX_ATTEMPTS = 5;
+const RETRY_QUEUE_LIMIT = 10_000; // batches (~100k records of headroom)
+
+const retryQueue = [];
+let flushing = false;
+
+function enqueueRetry(imei, records, attempts) {
+  if (retryQueue.length >= RETRY_QUEUE_LIMIT) {
+    const dropped = retryQueue.shift();
+    log(
+      `retry buffer full — dropped oldest batch for ${dropped.imei} ` +
+        `(${dropped.records.length} records, after ${dropped.attempts} attempts)`,
+    );
+  }
+  retryQueue.push({ imei, records, attempts });
+}
+
+function pendingRetry(imei) {
+  return retryQueue.some((q) => q.imei === imei);
+}
+
+async function postBatch(imei, records) {
   const res = await fetch(INGEST_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ imei, records }),
   });
   const text = await res.text();
-  if (!res.ok) {
-    log(`ingest rejected ${imei}: HTTP ${res.status} ${text}`);
-    return null;
-  }
-  log(`imei=${imei} lat=${rec.lat} lon=${rec.lon} speed=${rec.speedKmh}km/h -> ok`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);
   try {
     return JSON.parse(text);
   } catch {
     return null;
   }
+}
+
+async function deliverBatch(imei, records) {
+  if (pendingRetry(imei)) {
+    enqueueRetry(imei, records, 0); // keep this device's history ordered
+    return null;
+  }
+  try {
+    const result = await postBatch(imei, records);
+    log(`imei=${imei} batch=${records.length} record(s) -> ok`);
+    return result;
+  } catch (err) {
+    log(`ingest failed for ${imei} (${err instanceof Error ? err.message : err}) — buffered for retry`);
+    enqueueRetry(imei, records, 0);
+    return null;
+  }
+}
+
+async function flushRetries() {
+  if (flushing || retryQueue.length === 0) return;
+  flushing = true;
+  try {
+    for (let i = 0; i < retryQueue.length; ) {
+      const item = retryQueue[i];
+      try {
+        await postBatch(item.imei, item.records);
+        log(`retry delivered for ${item.imei} (${item.records.length} records)`);
+        retryQueue.splice(i, 1);
+      } catch {
+        item.attempts += 1;
+        if (item.attempts >= RETRY_MAX_ATTEMPTS) {
+          log(
+            `giving up on batch for ${item.imei} after ${item.attempts} attempts ` +
+              `(${item.records.length} records lost)`,
+          );
+          retryQueue.splice(i, 1);
+        } else {
+          i += 1; // retry again on the next flush
+        }
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+}
+
+setInterval(() => {
+  flushRetries().catch(() => {});
+}, RETRY_FLUSH_MS);
+
+// Accepts both the batch response ({results: [...]}) and the legacy
+// single-record response ({command}), returning the first pending command.
+function extractCommand(result) {
+  if (!result) return null;
+  if (typeof result.command === "string") return result.command;
+  if (Array.isArray(result.results)) {
+    for (const r of result.results) {
+      if (r && typeof r.command === "string") return r.command;
+    }
+  }
+  return null;
 }
 
 const server = net.createServer((socket) => {
@@ -366,14 +456,14 @@ const server = net.createServer((socket) => {
         ack.writeUInt32BE(records.length, 0);
         socket.write(ack);
 
-        for (const rec of records) {
-          const result = await forwardToIngest(imei, rec);
-          const command = result?.command;
-          const gsmCommand = ENGINE_COMMANDS[command];
-          if (gsmCommand) {
-            socket.write(codec12CommandPacket(gsmCommand));
-            log(`${imei}: relay command ${command} -> "${gsmCommand}"`);
-          }
+        // One ingest call for the whole packet (records stay in order)
+        const payloads = records.map(buildRecordPayload);
+        const result = await deliverBatch(imei, payloads);
+        const command = extractCommand(result);
+        const gsmCommand = ENGINE_COMMANDS[command];
+        if (gsmCommand) {
+          socket.write(codec12CommandPacket(gsmCommand));
+          log(`${imei}: relay command ${command} -> "${gsmCommand}"`);
         }
       }
     } catch (err) {

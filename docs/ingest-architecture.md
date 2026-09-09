@@ -4,13 +4,28 @@
 
 ```
 FMB920 tracker ──TCP──> collector (Node, Codec 8/8E)
-                          │  one HTTPS POST per AVL record
+                          │  ONE HTTPS POST per AVL packet (batched records,
+                          │  in-memory retry buffer on failure)
                           ▼
                  Supabase Edge Function `ingest`
-                          │  ONE PostgREST RPC call
+                          │  ONE PostgREST RPC call (single or batch)
                           ▼
-                 public.ingest_position(...)  [plpgsql, SECURITY DEFINER]
+                 public.ingest_position[_batch]  [plpgsql, SECURITY DEFINER]
 ```
+
+### Batching & resilience
+
+- The collector sends a whole AVL packet (all records after a reconnect, often
+  dozens) as **one** `POST { imei, records: [...] }` → one
+  `ingest_position_batch` call. Records are processed strictly in order inside
+  the RPC, so per-device state machines (ignition/trips, debounces,
+  transitions) see a consistent history even within a batch.
+- If ingest is unreachable, the collector buffers batches in memory (max 10,000
+  batches), retrying every 15 s with per-record error isolation; per-device
+  ordering is preserved by queueing new batches behind pending retries for the
+  same IMEI. After 5 failed attempts a batch is dropped and logged.
+- Single-record mode (`ingest_position`) remains for live one-off pings,
+  connectivity tests (`?test=1`), and third-party integrations.
 
 The edge function keeps only what must live at the edge: payload parsing
 (multi-vendor key aliases, NMEA coordinates, knot/kmh speed normalization,
@@ -60,6 +75,8 @@ function to one request + (rarely) email dispatch.
 - `EXECUTE` revoked from `public`/`anon`/`authenticated` — only `service_role`
   (the edge function) may call it. Otherwise any authenticated user could forge
   telemetry.
+- The `anon` role holds **zero** privileges on public tables (revoked as
+  defense-in-depth; RLS already gated every policy to org membership).
 
 ## Testing
 

@@ -164,6 +164,61 @@ interface IngestResult {
   critical_events?: Array<{ type: string; message: string }>;
 }
 
+/** Map a parsed ping to the flat record shape expected by the ingest RPCs. */
+function toIngestRecord(data: ReturnType<typeof parsePayload>, imei: string | null): Record<string, unknown> {
+  const rec: Record<string, unknown> = {
+    imei,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    speed_kmh: data.speed_kmh,
+    course: data.course,
+    altitude: data.altitude,
+    accuracy: data.accuracy,
+    battery: data.battery,
+    ignition: data.ignition,
+    door_open: data.door,
+    external_power: data.externalPower,
+    satellites: data.satellites === null ? null : Math.round(data.satellites),
+    hdop: data.hdop,
+    pdop: data.pdop,
+    gnss_status: data.gnssStatus === null ? null : Math.round(data.gnssStatus),
+    gsm_signal: data.gsmSignal === null ? null : Math.round(data.gsmSignal),
+    gsm_operator: data.gsmOperator === null ? null : Math.round(data.gsmOperator),
+    sleep_mode: data.sleepMode === null ? null : Math.round(data.sleepMode),
+    movement: data.movement,
+    battery_voltage_mv: data.batteryVoltageMv === null ? null : Math.round(data.batteryVoltageMv),
+    battery_current_ma: data.batteryCurrentMa === null ? null : Math.round(data.batteryCurrentMa),
+    external_voltage_mv: data.externalVoltageMv === null ? null : Math.round(data.externalVoltageMv),
+    harsh_accel: data.harshAccel,
+    harsh_brake: data.harshBrake,
+    harsh_corner: data.harshCorner,
+    crash: data.crash,
+    gforce: data.gforce,
+    towing: data.towing,
+    jamming: data.jamming,
+    panic: data.panic,
+    alarm: data.alarm,
+    ibutton: data.ibutton,
+    temperature: data.temperature,
+    humidity: data.humidity,
+    odometer_km: data.odometerKm,
+    engine_hours: data.engineHours,
+  };
+  if (data.recorded_at) rec.recorded_at = data.recorded_at;
+  return rec;
+}
+
+/** Prefix record keys with p_ for the named-arg single-record RPC. */
+function recordToRpcArgs(rec: Record<string, unknown>): Record<string, unknown> {
+  const args: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec)) args[`p_${k}`] = v;
+  return args;
+}
+
+function isValidCoords(lat: number | null, lon: number | null): boolean {
+  return lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -183,60 +238,73 @@ serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const data = parsePayload(url, body);
   const isTest = (url.searchParams.get("test") ?? body?.test) ? true : false;
 
-  if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
-  if (data.latitude === null || data.longitude === null) {
-    return corsResponse({ error: "Missing or invalid coordinates" }, 400);
+  // Batch mode: { imei, records: [...] } — the collector sends a whole AVL
+  // packet (often many records after reconnect) as ONE RPC call.
+  const batchRecords = Array.isArray(body?.records) ? (body!.records as Record<string, unknown>[]) : null;
+
+  if (batchRecords) {
+    const imei = body?.imei ?? url.searchParams.get("imei");
+    if (!imei || typeof imei !== "string") {
+      return corsResponse({ error: "Missing device identifier (imei)" }, 400);
+    }
+
+    const parsed: Record<string, unknown>[] = [];
+    const invalid: unknown[] = [];
+    for (const raw of batchRecords) {
+      const rec = parsePayload(url, { ...raw, imei });
+      if (!isValidCoords(rec.latitude, rec.longitude)) {
+        invalid.push({ error: "Missing or invalid coordinates" });
+        continue;
+      }
+      parsed.push(toIngestRecord(rec, imei));
+    }
+    if (parsed.length === 0) {
+      return corsResponse({ error: "No valid records in batch", results: invalid }, 400);
+    }
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc("ingest_position_batch", { p_records: parsed });
+    if (rpcError) {
+      console.error("[ingest] batch rpc failed", rpcError);
+      return corsResponse({ error: "Failed to process telemetry" }, 500);
+    }
+
+    const result = (rpcData ?? null) as { results?: IngestResult[] } | null;
+    const results = result?.results ?? [];
+
+    // Critical-event email dispatch per record (no-op unless critical events exist)
+    for (const r of results) {
+      const criticalEvents = Array.isArray(r.critical_events) ? r.critical_events : [];
+      if (criticalEvents.length > 0 && r.organization_id) {
+        try {
+          await sendCriticalAlertEmails(supabase, r.organization_id, criticalEvents, {
+            vehicleId: r.vehicle_id ?? null,
+            latitude: r.latitude!,
+            longitude: r.longitude!,
+            recordedAt: r.recorded_at!,
+          });
+        } catch (err) {
+          console.error("[ingest] alert email dispatch failed", err);
+        }
+      }
+    }
+
+    return corsResponse({ ok: true, results });
   }
-  if (Math.abs(data.latitude) > 90 || Math.abs(data.longitude) > 180) {
-    return corsResponse({ error: "Coordinates out of range" }, 400);
+
+  // Single-record mode (live pings, connectivity tests, third-party integrations)
+  const data = parsePayload(url, body);
+
+  if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
+  if (!isValidCoords(data.latitude, data.longitude)) {
+    return corsResponse({ error: "Missing or invalid coordinates" }, 400);
   }
 
   // Single server-side RPC: resolves the device, stores telemetry, derives
   // events/alerts/trips/odometer/maintenance, and returns any pending command.
-  // (p_recorded_at is omitted when absent so the database default `now()` applies.)
-  const args: Record<string, unknown> = {
-    p_imei: data.ident,
-    p_test: isTest,
-    p_latitude: data.latitude,
-    p_longitude: data.longitude,
-    p_speed_kmh: data.speed_kmh,
-    p_course: data.course,
-    p_altitude: data.altitude,
-    p_accuracy: data.accuracy,
-    p_battery: data.battery,
-    p_ignition: data.ignition,
-    p_door_open: data.door,
-    p_external_power: data.externalPower,
-    p_satellites: data.satellites === null ? null : Math.round(data.satellites),
-    p_hdop: data.hdop,
-    p_pdop: data.pdop,
-    p_gnss_status: data.gnssStatus === null ? null : Math.round(data.gnssStatus),
-    p_gsm_signal: data.gsmSignal === null ? null : Math.round(data.gsmSignal),
-    p_gsm_operator: data.gsmOperator === null ? null : Math.round(data.gsmOperator),
-    p_sleep_mode: data.sleepMode === null ? null : Math.round(data.sleepMode),
-    p_movement: data.movement,
-    p_battery_voltage_mv: data.batteryVoltageMv === null ? null : Math.round(data.batteryVoltageMv),
-    p_battery_current_ma: data.batteryCurrentMa === null ? null : Math.round(data.batteryCurrentMa),
-    p_external_voltage_mv: data.externalVoltageMv === null ? null : Math.round(data.externalVoltageMv),
-    p_harsh_accel: data.harshAccel,
-    p_harsh_brake: data.harshBrake,
-    p_harsh_corner: data.harshCorner,
-    p_crash: data.crash,
-    p_gforce: data.gforce,
-    p_towing: data.towing,
-    p_jamming: data.jamming,
-    p_panic: data.panic,
-    p_alarm: data.alarm,
-    p_ibutton: data.ibutton,
-    p_temperature: data.temperature,
-    p_humidity: data.humidity,
-    p_odometer_km: data.odometerKm,
-    p_engine_hours: data.engineHours,
-  };
-  if (data.recorded_at) args.p_recorded_at = data.recorded_at;
+  const args: Record<string, unknown> = recordToRpcArgs(toIngestRecord(data, data.ident));
+  args.p_test = isTest;
 
   const { data: rpcData, error: rpcError } = await supabase.rpc("ingest_position", args);
   if (rpcError) {
