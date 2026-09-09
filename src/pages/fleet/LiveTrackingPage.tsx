@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
   Activity,
   Car,
@@ -49,7 +49,7 @@ interface AssignedDevice {
 }
 
 function formatUpdated(ts: string) {
-  return formatDistanceToNow(new Date(ts), { addSuffix: true });
+  return format(new Date(ts), "dd MMM yyyy, HH:mm:ss");
 }
 
 function isOffline(latestUpdatedAt: string | null) {
@@ -342,7 +342,7 @@ export default function LiveTrackingPage() {
                     <TableHead className="hidden lg:table-cell">Speed</TableHead>
                     <TableHead className="hidden lg:table-cell">Ignition</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden xl:table-cell">Updated</TableHead>
+                    <TableHead className="hidden xl:table-cell">GPS timestamp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -416,7 +416,7 @@ export default function LiveTrackingPage() {
                         </TableCell>
                         <TableCell className="hidden xl:table-cell">
                           <span className="text-xs text-muted-foreground">
-                            {pos ? formatUpdated(pos.updated_at) : "—"}
+                            {pos ? formatUpdated(pos.recorded_at) : "—"}
                           </span>
                         </TableCell>
                       </TableRow>

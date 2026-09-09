@@ -3,7 +3,7 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L, { type LatLngBoundsExpression, type LatLngExpression } from "leaflet";
 import { Button } from "@/components/ui/button";
 import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-icon";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { LocateFixed, Maximize2 } from "lucide-react";
 import type { LatestPosition } from "@/types/database";
 import { getTelemetryStatus, TELEMETRY_STATUS_LABELS } from "@/lib/telemetry-status";
@@ -138,9 +138,9 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
                       </div>
                     </div>
                     <div className="rounded-lg border border-border bg-card/60 p-2">
-                      <div className="text-[10px] text-muted-foreground">Updated</div>
+                      <div className="text-[10px] text-muted-foreground">Received</div>
                       <div className="font-semibold">
-                        {formatDistanceToNow(new Date(v.position.updated_at), { addSuffix: true })}
+                        {format(new Date(v.position.updated_at), "dd MMM yyyy, HH:mm:ss")}
                       </div>
                     </div>
                   </div>
