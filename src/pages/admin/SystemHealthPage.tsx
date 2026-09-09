@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Clock, RefreshCw, Saturation, Signal } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock, Gauge, RefreshCw, Signal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -149,7 +149,7 @@ export default function SystemHealthPage() {
                   ? "All in-use devices reported recently"
                   : "In use, but silent for over 24 hours"
               }
-              icon={Saturation}
+              icon={Gauge}
               tone={latest.stale_devices > 0 ? "warn" : "good"}
             />
             <StatCard
