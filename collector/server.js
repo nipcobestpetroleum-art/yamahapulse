@@ -13,6 +13,12 @@ const PORT = parseInt(process.env.COLLECTOR_PORT || "5027", 10);
 const INGEST_URL =
   process.env.INGEST_URL ||
   "https://glwinxaanstczuubxqqg.supabase.co/functions/v1/ingest";
+// Optional shared secret: must match COLLECTOR_SECRET on the ingest function.
+const COLLECTOR_KEY = process.env.COLLECTOR_KEY || "";
+const INGEST_HEADERS = {
+  "content-type": "application/json",
+  ...(COLLECTOR_KEY ? { "x-collector-key": COLLECTOR_KEY } : {}),
+};
 
 // Teltonika AVL IO IDs used by the FMB920 (see collector/README.md for the full map).
 const IO = {
@@ -315,7 +321,7 @@ function pendingRetry(imei) {
 async function postBatch(imei, records) {
   const res = await fetch(INGEST_URL, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: INGEST_HEADERS,
     body: JSON.stringify({ imei, records }),
   });
   const text = await res.text();

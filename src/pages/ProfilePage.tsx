@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/password-input";
 import { PasswordStrength } from "@/components/password-strength";
+import { TwoFactorCard } from "@/components/auth/two-factor-card";
 import { PageHeader } from "@/components/page-header";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -60,8 +61,8 @@ export default function ProfilePage() {
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 8) {
-      showError("Password must be at least 8 characters.");
+    if (newPassword.length < 10) {
+      showError("Password must be at least 10 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -163,6 +164,8 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          <TwoFactorCard />
 
           <Card className="border-border bg-card/60">
             <CardHeader>

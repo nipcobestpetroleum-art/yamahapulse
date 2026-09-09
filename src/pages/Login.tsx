@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Fuel, Loader2, MapPin, Radar, ShieldCheck } from "lucide-react";
+import { Fuel, Loader2, Lock, MapPin, Radar, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PasswordInput } from "@/components/password-input";
 import { PasswordStrength } from "@/components/password-strength";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 
 const FEATURES = [
@@ -39,9 +40,60 @@ export default function Login() {
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Second-factor challenge state: a session at aal1 with a verified TOTP
+  // factor must answer a challenge before being allowed into the app.
+  const [mfaChallenge, setMfaChallenge] = useState<{ factorId: string; challengeId: string } | null>(null);
+  const [mfaChecked, setMfaChecked] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaBusy, setMfaBusy] = useState(false);
+
+  useEffect(() => {
+    if (!session || mfaChallenge || mfaChecked) return;
+    let cancelled = false;
+    (async () => {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (cancelled) return;
+      if (aal.currentLevel === "aal1" && aal.nextLevel === "aal2") {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const factor = factors?.totp?.find((f) => f.status === "verified");
+        if (factor) {
+          const { data: challenge } = await supabase.auth.mfa.challenge({ factorId: factor.id });
+          if (challenge && !cancelled) {
+            setMfaChallenge({ factorId: factor.id, challengeId: challenge.id });
+            setMfaChecked(true);
+            return;
+          }
+        }
+      }
+      if (!cancelled) setMfaChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, mfaChallenge, mfaChecked]);
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaChallenge) return;
+    setMfaBusy(true);
+    setError(null);
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId: mfaChallenge.factorId,
+      challengeId: mfaChallenge.challengeId,
+      code: mfaCode.trim(),
+    });
+    setMfaBusy(false);
+    if (verifyError) {
+      setError(verifyError.message);
+      return;
+    }
+    navigate("/", { replace: true });
+  };
+
   // Already signed in — go straight to the right place (the "/" route decides
-  // between this user's dashboard and onboarding based on their memberships).
-  if (session) return <Navigate to="/" replace />;
+  // between this user's dashboard and onboarding based on their memberships),
+  // unless a second factor is still pending.
+  if (session && mfaChecked && !mfaChallenge) return <Navigate to="/" replace />;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +178,46 @@ export default function Login() {
             Sign in to your workspace or create a new account.
           </p>
 
+          {session && mfaChallenge ? (
+            <form onSubmit={handleMfaVerify} className="space-y-4">
+              <div className="flex items-center gap-3 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+                <Lock className="h-4 w-4 shrink-0 text-primary" />
+                <p className="text-xs text-muted-foreground">
+                  Enter the 6-digit code from your authenticator app to finish signing in.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mfa-login-code">Two-factor code</Label>
+                <Input
+                  id="mfa-login-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                  maxLength={6}
+                  autoFocus
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                  className="bg-card/60 text-center text-lg tracking-[0.4em]"
+                />
+              </div>
+              {error && (
+                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" className="w-full" disabled={mfaBusy || mfaCode.length !== 6}>
+                {mfaBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify code
+              </Button>
+              <button
+                type="button"
+                className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => supabase.auth.signOut()}
+              >
+                Sign out and use a different account
+              </button>
+            </form>
+          ) : (
           <Tabs defaultValue="signin">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
@@ -215,9 +307,9 @@ export default function Login() {
                   <PasswordInput
                     id="signup-password"
                     required
-                    minLength={6}
+                    minLength={10}
                     autoComplete="new-password"
-                    placeholder="Minimum 6 characters"
+                    placeholder="Minimum 10 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="bg-card/60"
@@ -241,6 +333,7 @@ export default function Login() {
               </form>
             </TabsContent>
           </Tabs>
+          )}
         </div>
       </div>
     </div>

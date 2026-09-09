@@ -222,6 +222,13 @@ function isValidCoords(lat: number | null, lon: number | null): boolean {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Optional shared secret between collector and ingest: when COLLECTOR_SECRET
+  // is set in the function's env, callers must present it in x-collector-key.
+  const collectorSecret = Deno.env.get("COLLECTOR_SECRET");
+  if (collectorSecret && req.headers.get("x-collector-key") !== collectorSecret) {
+    return corsResponse({ error: "Unauthorized collector" }, 401);
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -242,7 +249,12 @@ serve(async (req) => {
 
   // Batch mode: { imei, records: [...] } — the collector sends a whole AVL
   // packet (often many records after reconnect) as ONE RPC call.
-  const batchRecords = Array.isArray(body?.records) ? (body!.records as Record<string, unknown>[]) : null;
+  const MAX_BATCH = 100;
+  let batchRecords = Array.isArray(body?.records) ? (body!.records as Record<string, unknown>[]) : null;
+  if (batchRecords && batchRecords.length > MAX_BATCH) {
+    console.warn(`[ingest] batch truncated from ${batchRecords.length} to ${MAX_BATCH} records`);
+    batchRecords = batchRecords.slice(0, MAX_BATCH);
+  }
 
   if (batchRecords) {
     const imei = body?.imei ?? url.searchParams.get("imei");
