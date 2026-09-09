@@ -12,6 +12,8 @@ import {
   MapPin,
   Pause,
   BatteryWarning,
+  ChevronLeft,
+  ChevronRight,
   Play,
   Power,
   PowerOff,
@@ -30,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -102,6 +105,8 @@ const EVENT_LABELS: Record<DeviceEventType, string> = {
   LOW_BATTERY: "Low device battery",
 };
 
+const PAGE_SIZE = 25;
+
 const SEVERITY_STYLES: Record<string, string> = {
   info: "border-sky-500/25 bg-sky-500/10 text-sky-400",
   warning: "border-amber-500/25 bg-amber-500/10 text-amber-400",
@@ -111,6 +116,8 @@ const SEVERITY_STYLES: Record<string, string> = {
 export default function EventsPage() {
   const { currentOrg } = useAuth();
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("all");
 
@@ -120,31 +127,51 @@ export default function EventsPage() {
 
     let query = supabase
       .from("device_events")
-      .select("*, device:gps_devices(name), vehicle:vehicles(name)")
+      .select("*, device:gps_devices(name), vehicle:vehicles(name)", { count: "exact" })
       .eq("organization_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(150);
+      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
     if (typeFilter !== "all") query = query.eq("type", typeFilter);
 
-    const { data, error } = await query;
+    const { data, count, error } = await query;
     setLoading(false);
     if (error) {
       showError(error.message);
       return;
     }
     setEvents((data ?? []) as unknown as EventRow[]);
-  }, [currentOrg, typeFilter]);
+    setTotal(count ?? 0);
+  }, [currentOrg, typeFilter, page]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [typeFilter]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
     <div>
       <PageHeader
         title="Events"
-        description={`${events.length} recent event${events.length === 1 ? "" : "s"}`}
+        description={`${total.toLocaleString()} event${total === 1 ? "" : "s"} in this organization`}
+        actions={
+          total > 0 ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8" disabled={loading || page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">Page {page + 1} of {pageCount}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" disabled={loading || page >= pageCount - 1} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="mb-4">
