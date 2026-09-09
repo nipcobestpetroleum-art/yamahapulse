@@ -21,3 +21,4 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run load:dry -- 1000
+      - run: npm run tcp:load:dry -- 1000

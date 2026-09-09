@@ -77,10 +77,51 @@ Do not delete it blindly; investigate the device (`353691843428060`) and add a
 clock/GPS-quality remediation before production rollout. The default partition
 is intentionally retained so malformed device timestamps cannot break ingest.
 
+## TCP collector capacity and reconnect storms
+
+`tests/tcp-load-harness.mjs` exercises the collector's actual TCP boundary:
+IMEI handshake, Codec 8 packet delivery, collector ACK, and connection close.
+It supports reconnect rounds to approximate a fleet coming back after a network
+outage.
+
+Dry-run examples:
+
+```text
+npm run tcp:load:dry -- 1000
+TRACKERS=10000 RECONNECT_ROUNDS=3 npm run tcp:load:dry
+TRACKERS=100000 RECONNECT_ROUNDS=2 npm run tcp:load:dry
+```
+
+A live run requires explicit staging target variables and opt-in:
+
+```text
+TCP_LOAD_HOST=staging-collector.example.com \
+TCP_LOAD_PORT=5027 \
+DRY_RUN=0 TRACKERS=1000 CONCURRENCY=100 RECONNECT_ROUNDS=1 \
+npm run tcp:load
+```
+
+Capture collector CPU/memory, open sockets, ACK latency, ingest latency,
+retry-buffer depth, dropped batches, and Railway restarts. At 10k and 100k,
+run a persistent-connection test separately from reconnect rounds; this harness
+opens sessions in controlled waves and closes them after ACK.
+
+Queue decision rule:
+
+- Keep the in-memory retry buffer only if the collector survives the largest
+  planned outage/reconnect test with zero dropped batches and acceptable memory.
+- Move to a durable queue before launch if restart tests lose buffered batches,
+  memory grows linearly with outage duration, or reconnect bursts cause the
+  collector to exceed its socket/CPU limits.
+- A durable queue must preserve per-IMEI ordering, expose depth/age metrics,
+  enforce a maximum retention window, and make delivery idempotent (the ingest
+  RPC already provides timestamp deduplication).
+
 ## Current limitations
 
 - The ingest regression suite is deterministic and does not mutate Supabase.
-- The load harness uses HTTP batch requests; it does not model TCP connection
-  count, cellular reconnect behavior, or Railway autoscaling.
-- A true 100k reconnect-storm test requires an isolated staging environment with
-  production-like database sizing and a durable queue decision.
+- The HTTP load harness measures ingest batching but does not model TCP sessions.
+- The TCP harness does not model a full 100k persistent fleet in one process;
+  use it in waves and validate against Railway/container limits.
+- Live load tests require an isolated staging environment with production-like
+  database sizing and disposable IMEIs.
