@@ -1,0 +1,1 @@
+create index if not exists maintenance_intervals_org_vehicle_active_idx on public.maintenance_intervals (organization_id, vehicle_id, is_active);

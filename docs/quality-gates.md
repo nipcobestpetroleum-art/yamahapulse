@@ -54,10 +54,33 @@ CI should run `npm test`, `npm run lint`, `npm run build`, and type checks on ev
 pull request. Database RPC integration tests must run against a disposable
 staging Supabase project, never a developer's or production database.
 
+## Database query-plan review
+
+The current hot-path plans were reviewed after adding these targeted indexes:
+
+- `latest_positions_org_updated_idx` — organization freshness checks
+- `gps_devices_org_status_seen_idx` — stale in-use device checks
+- `alert_rules_enabled_type_org_idx` — enabled rule lookups by organization/type
+- `trips_vehicle_status_idx` — open-trip lookups
+- `maintenance_schedules_vehicle_status_service_idx` — per-telemetry schedule checks
+- `maintenance_intervals_org_vehicle_active_idx` — active interval checks
+
+The partitioned telemetry plans already use child indexes and partition-aware
+Append scans. At the current 40-device/9.5k-row scale PostgreSQL correctly
+chooses sequential scans for some small tables despite the indexes; that is
+expected. Re-run `EXPLAIN (ANALYZE, BUFFERS)` in staging at 10k and 100k device
+sizes before removing or adding indexes.
+
+A data-quality exception was found in `positions_default`: one position has a
+2004 timestamp and zero coordinates while its server `created_at` is current.
+Do not delete it blindly; investigate the device (`353691843428060`) and add a
+clock/GPS-quality remediation before production rollout. The default partition
+is intentionally retained so malformed device timestamps cannot break ingest.
+
 ## Current limitations
 
 - The ingest regression suite is deterministic and does not mutate Supabase.
 - The load harness uses HTTP batch requests; it does not model TCP connection
   count, cellular reconnect behavior, or Railway autoscaling.
-- Database query-plan review and a true 100k reconnect-storm test require an
-  isolated staging environment with production-like database sizing.
+- A true 100k reconnect-storm test requires an isolated staging environment with
+  production-like database sizing and a durable queue decision.

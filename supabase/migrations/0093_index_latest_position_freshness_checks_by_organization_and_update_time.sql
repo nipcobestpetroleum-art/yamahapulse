@@ -1,0 +1,1 @@
+create index if not exists latest_positions_org_updated_idx on public.latest_positions (organization_id, updated_at desc);

@@ -1,0 +1,1 @@
+create index if not exists maintenance_schedules_vehicle_status_service_idx on public.maintenance_schedules (vehicle_id, status, service_type);

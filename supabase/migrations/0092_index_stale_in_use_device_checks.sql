@@ -1,0 +1,1 @@
+create index if not exists gps_devices_org_status_seen_idx on public.gps_devices (organization_id, status, last_seen_at);

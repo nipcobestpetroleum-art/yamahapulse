@@ -1,0 +1,1 @@
+create index if not exists trips_vehicle_status_idx on public.trips (vehicle_id, status);

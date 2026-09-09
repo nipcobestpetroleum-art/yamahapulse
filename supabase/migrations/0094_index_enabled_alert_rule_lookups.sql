@@ -1,0 +1,1 @@
+create index if not exists alert_rules_enabled_type_org_idx on public.alert_rules (organization_id, type) where enabled = true;
