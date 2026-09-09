@@ -50,6 +50,7 @@ import TechniciansPage from "./pages/assets/TechniciansPage";
 import UsersPage from "./pages/admin/UsersPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
+import SystemHealthPage from "./pages/admin/SystemHealthPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -143,6 +144,7 @@ const App = () => (
               <Route path="/admin/users" element={<UsersPage />} />
               <Route path="/admin/organization" element={<OrganizationPage />} />
               <Route path="/admin/branches" element={<BranchesPage />} />
+              <Route path="/admin/system-health" element={<SystemHealthPage />} />
 
               {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />

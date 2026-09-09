@@ -1,0 +1,1 @@
+alter table public.alerts alter column device_id drop not null;

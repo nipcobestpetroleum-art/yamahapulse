@@ -241,7 +241,7 @@ export type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
 export interface Alert {
   id: string;
   organization_id: string;
-  device_id: string;
+  device_id: string | null;
   vehicle_id: string | null;
   rule_id: string | null;
   type: string;
@@ -256,6 +256,26 @@ export interface Alert {
   resolved_at: string | null;
   resolved_by: string | null;
   resolution_notes: string | null;
+  created_at: string;
+}
+
+export interface PipelineHealthIssue {
+  code: string;
+  severity: string;
+  message: string;
+}
+
+export interface PipelineHealth {
+  id: string;
+  organization_id: string;
+  recorded_at: string;
+  active_devices: number;
+  reporting_15m: number;
+  reporting_1h: number;
+  reporting_24h: number;
+  stale_devices: number;
+  positions_15m: number;
+  issues: PipelineHealthIssue[];
   created_at: string;
 }
 
