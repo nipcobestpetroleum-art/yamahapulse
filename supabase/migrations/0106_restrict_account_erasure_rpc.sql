@@ -1,0 +1,1 @@
+revoke all on function public.request_account_erasure() from public, anon;

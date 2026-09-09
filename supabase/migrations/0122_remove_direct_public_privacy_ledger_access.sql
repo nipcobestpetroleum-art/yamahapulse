@@ -1,0 +1,1 @@
+revoke all on table public.privacy_requests from anon, authenticated;

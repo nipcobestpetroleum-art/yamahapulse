@@ -1,0 +1,1 @@
+grant execute on function public.apply_billing_plan_event(text,text,text,uuid,text,jsonb) to service_role;

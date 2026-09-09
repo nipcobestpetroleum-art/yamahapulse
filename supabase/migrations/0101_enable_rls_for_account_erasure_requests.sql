@@ -1,0 +1,1 @@
+alter table public.account_erasure_requests enable row level security;

@@ -114,23 +114,42 @@ export default function OrganizationPage() {
   const handleExport = async () => {
     if (!currentOrg) return;
     setExporting(true);
-    const { data, error } = await supabase.rpc("export_organization_data", {
-      p_organization_id: currentOrg.id,
+    const { data: created, error: createError } = await supabase.functions.invoke("privacy-export", {
+      body: { action: "create", organizationId: currentOrg.id },
     });
-    setExporting(false);
-    if (error) {
-      showError(error.message);
+    if (createError) {
+      setExporting(false);
+      showError(createError.message);
       return;
     }
-    const result = data as { request_id: string; data: unknown };
-    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${currentOrg.slug}-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    showSuccess("Organization data export downloaded");
+
+    const requestId = (created as { requestId: string }).requestId;
+    showSuccess("Export queued. Preparing a secure download…");
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      const { data: status, error: statusError } = await supabase.functions.invoke("privacy-export", {
+        body: { action: "status", requestId },
+      });
+      if (statusError) continue;
+      const metadata = (status as { status: string; metadata?: { signed_url?: string } }).metadata;
+      if ((status as { status: string }).status === "FAILED") {
+        setExporting(false);
+        showError("The export could not be prepared");
+        return;
+      }
+      if (metadata?.signed_url) {
+        const anchor = document.createElement("a");
+        anchor.href = metadata.signed_url;
+        anchor.download = `${currentOrg.slug}-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        anchor.target = "_blank";
+        anchor.click();
+        setExporting(false);
+        showSuccess("Secure organization export downloaded");
+        return;
+      }
+    }
+    setExporting(false);
+    showError("The export is still preparing. Check the privacy request status shortly.");
   };
 
   const handleDelete = async () => {

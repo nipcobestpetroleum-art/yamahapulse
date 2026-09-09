@@ -78,6 +78,18 @@ export function DeviceFormDialog({ open, onOpenChange, device, onSaved }: Props)
     e.preventDefault();
     if (!currentOrg) return;
     setSaving(true);
+    if (!device) {
+      const { data: allowed, error: entitlementError } = await supabase.rpc("organization_can_provision", {
+        p_organization_id: currentOrg.id,
+        p_resource: "devices",
+        p_quantity: 1,
+      });
+      if (entitlementError || !allowed) {
+        setSaving(false);
+        showError(entitlementError?.message ?? "This plan has reached its device limit.");
+        return;
+      }
+    }
 
     const selectedModel = models.find((m) => m.id === modelId) ?? null;
     const payload = {

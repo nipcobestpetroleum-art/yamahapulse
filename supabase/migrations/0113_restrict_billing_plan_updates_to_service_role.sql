@@ -1,0 +1,1 @@
+revoke all on function public.apply_billing_plan_event(text,text,text,uuid,text,jsonb) from public, anon, authenticated;

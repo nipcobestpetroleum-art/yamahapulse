@@ -1,0 +1,1 @@
+create policy account_erasure_self_select on public.account_erasure_requests for select to authenticated using (user_id = auth.uid());

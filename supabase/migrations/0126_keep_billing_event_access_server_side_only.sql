@@ -1,0 +1,1 @@
+grant select, insert, update on table public.billing_events to service_role;

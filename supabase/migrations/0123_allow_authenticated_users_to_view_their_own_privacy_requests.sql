@@ -1,0 +1,1 @@
+grant select on table public.privacy_requests to authenticated;

@@ -1,0 +1,1 @@
+grant execute on function public.process_organization_export(uuid) to service_role;

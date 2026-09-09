@@ -86,6 +86,18 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle, onSaved }: Prop
     e.preventDefault();
     if (!currentOrg) return;
     setSaving(true);
+    if (!vehicle) {
+      const { data: allowed, error: entitlementError } = await supabase.rpc("organization_can_provision", {
+        p_organization_id: currentOrg.id,
+        p_resource: "vehicles",
+        p_quantity: 1,
+      });
+      if (entitlementError || !allowed) {
+        setSaving(false);
+        showError(entitlementError?.message ?? "This plan has reached its vehicle limit.");
+        return;
+      }
+    }
 
     const payload = {
       name: name.trim(),

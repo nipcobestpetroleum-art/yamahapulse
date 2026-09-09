@@ -1,0 +1,1 @@
+alter table public.billing_events enable row level security;

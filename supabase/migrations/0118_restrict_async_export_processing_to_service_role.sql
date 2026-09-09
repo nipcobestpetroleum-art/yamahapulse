@@ -1,0 +1,1 @@
+revoke all on function public.process_organization_export(uuid) from public, anon, authenticated;

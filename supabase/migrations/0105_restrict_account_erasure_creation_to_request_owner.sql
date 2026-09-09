@@ -1,0 +1,1 @@
+create policy account_erasure_self_insert on public.account_erasure_requests for insert to authenticated with check (user_id = auth.uid());

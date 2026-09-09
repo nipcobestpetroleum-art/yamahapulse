@@ -117,6 +117,19 @@ serve(async (req) => {
         });
       }
 
+      const { data: capacity, error: capacityError } = await userClient.rpc("organization_can_provision", {
+        p_organization_id: organizationId,
+        p_resource: "users",
+        p_quantity: 1,
+      });
+      if (capacityError || !capacity) {
+        console.error("[org-users] user entitlement check failed", capacityError);
+        return new Response(JSON.stringify({ error: capacityError?.message ?? "This plan has reached its user limit" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { data: roleRow, error: roleLookupError } = await serviceClient
         .from("roles")
         .select("id")

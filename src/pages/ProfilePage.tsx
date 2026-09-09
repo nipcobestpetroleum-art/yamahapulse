@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const { user, profile, currentRole, refreshMemberships } = useAuth();
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [requestingErasure, setRequestingErasure] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -79,6 +80,17 @@ export default function ProfilePage() {
     setNewPassword("");
     setConfirmPassword("");
     showSuccess("Password updated");
+  };
+
+  const handleAccountErasure = async () => {
+    setRequestingErasure(true);
+    const { data, error } = await supabase.rpc("request_account_erasure");
+    setRequestingErasure(false);
+    if (error) {
+      showError(error.message);
+      return;
+    }
+    showSuccess(data ? "Account erasure request recorded" : "Account erasure request submitted");
   };
 
   return (
@@ -195,6 +207,21 @@ export default function ProfilePage() {
                   Update password
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-destructive">Account data request</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Request account-level erasure separately from organization deletion. Any active organization memberships must be transferred or removed first.
+              </p>
+              <Button type="button" variant="outline" onClick={() => void handleAccountErasure()} disabled={requestingErasure} className="w-full">
+                {requestingErasure && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Request account erasure
+              </Button>
             </CardContent>
           </Card>
         </div>

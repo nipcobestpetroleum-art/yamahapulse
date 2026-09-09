@@ -1,0 +1,1 @@
+revoke all on function public.request_organization_export_async(uuid,timestamptz,timestamptz) from public, anon;

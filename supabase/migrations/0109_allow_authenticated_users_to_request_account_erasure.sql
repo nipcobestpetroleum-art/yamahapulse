@@ -1,0 +1,1 @@
+grant execute on function public.request_account_erasure() to authenticated;

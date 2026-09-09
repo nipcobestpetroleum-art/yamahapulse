@@ -1,0 +1,1 @@
+create policy privacy_requests_self_select on public.privacy_requests for select to authenticated using (requested_by = auth.uid());

@@ -1,0 +1,1 @@
+grant select, insert on table public.account_erasure_requests to authenticated;

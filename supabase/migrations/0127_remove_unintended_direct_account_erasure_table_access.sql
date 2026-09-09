@@ -1,0 +1,1 @@
+revoke all on table public.account_erasure_requests from anon, authenticated;

@@ -1,0 +1,1 @@
+revoke all on table public.billing_events from anon, authenticated;

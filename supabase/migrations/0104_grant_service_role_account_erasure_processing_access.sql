@@ -1,0 +1,1 @@
+grant select, insert, update, delete on table public.account_erasure_requests to service_role;
