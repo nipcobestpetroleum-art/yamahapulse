@@ -38,6 +38,20 @@ const currentIcon = L.divIcon({
   iconAnchor: [10, 10],
 });
 
+const routeStartIcon = L.divIcon({
+  className: "asset-route-start-dot",
+  html: '<div style="width:14px;height:14px;border-radius:9999px;background:#60a5fa;border:3px solid white;box-shadow:0 0 0 4px rgba(96,165,250,.25);"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
+const routeEndIcon = L.divIcon({
+  className: "asset-route-end-dot",
+  html: '<div style="width:14px;height:14px;border-radius:9999px;background:#fb923c;border:3px solid white;box-shadow:0 0 0 4px rgba(251,146,60,.25);"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
 function FitRoute({ positions }: { positions: Position[] }) {
   const map = useMap();
   useEffect(() => {
@@ -94,9 +108,11 @@ export default function AssetDetailPage() {
     });
   }, [currentOrg, deviceId]);
 
-  const route = useMemo(() => history.filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)), [history]);
+  const route = useMemo(() => history.filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && (p.latitude !== 0 || p.longitude !== 0)), [history]);
   const routePoints = route.map((p) => [p.latitude, p.longitude] as LatLngExpression);
-  const currentPosition = latest ?? route[route.length - 1] ?? null;
+  const startPosition = route[0] ?? null;
+  const endPosition = route[route.length - 1] ?? null;
+  const currentPosition = latest ?? endPosition;
   const center: LatLngExpression = currentPosition ? [currentPosition.latitude, currentPosition.longitude] : [20, 0];
 
   const sendCommand = async () => {
@@ -135,8 +151,8 @@ export default function AssetDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,.8fr)]">
         <Card className="overflow-hidden border-border bg-card/40">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-emerald-400" />Today’s route · {route.length} points</CardTitle></CardHeader>
-          <CardContent className="p-0"><div className="h-[500px] overflow-hidden border-t border-border"><MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitRoute positions={route} />{routePoints.length > 1 && <Polyline positions={routePoints} pathOptions={{ color: "#34d399", weight: 5, opacity: .9 }} />}{currentPosition && <Marker position={[currentPosition.latitude, currentPosition.longitude]} icon={currentIcon} />}</MapContainer></div></CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-emerald-400" />Today’s route · {route.length} valid points</CardTitle></CardHeader>
+          <CardContent className="p-0"><div className="h-[500px] overflow-hidden border-t border-border"><MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitRoute positions={route} />{routePoints.length > 1 && <Polyline positions={routePoints} pathOptions={{ color: "#34d399", weight: 5, opacity: .9 }} />}{startPosition && <Marker position={[startPosition.latitude, startPosition.longitude]} icon={routeStartIcon} />}{route.length > 1 && endPosition && <Marker position={[endPosition.latitude, endPosition.longitude]} icon={routeEndIcon} />}{currentPosition && <Marker position={[currentPosition.latitude, currentPosition.longitude]} icon={currentIcon} />}</MapContainer></div></CardContent>
         </Card>
 
         <div className="space-y-4">
