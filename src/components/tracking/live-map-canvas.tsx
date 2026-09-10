@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { Fragment, useEffect, useMemo, useRef } from "react";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import L, { type LatLngBoundsExpression, type LatLngExpression } from "leaflet";
 import { Button } from "@/components/ui/button";
 import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-icon";
@@ -14,6 +14,7 @@ export interface LiveMapVehicle {
   vehicleName: string;
   registration: string | null;
   position: LatestPosition;
+  trail: [number, number][];
 }
 
 interface LiveMapCanvasProps {
@@ -30,7 +31,7 @@ function FitToData({ vehicles }: { vehicles: LiveMapVehicle[] }) {
     if (fittedRef.current) return;
     const pts = vehicles
       .map((v) =>
-        Number.isFinite(v.position.latitude) && Number.isFinite(v.position.longitude)
+        Number.isFinite(v.position.latitude) && Number.isFinite(v.position.longitude) && (v.position.latitude !== 0 || v.position.longitude !== 0)
           ? ([v.position.latitude, v.position.longitude] as LatLngExpression)
           : null,
       )
@@ -51,7 +52,7 @@ function SelectedZoom({ selected }: { selected: LiveMapVehicle | null }) {
   useEffect(() => {
     if (!selected) return;
     const { latitude, longitude } = selected.position;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || (latitude === 0 && longitude === 0)) return;
     map.setView([latitude, longitude], Math.max(map.getZoom(), 15), { animate: true });
   }, [map, selected]);
   return null;
@@ -63,10 +64,12 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
     [vehicles, selectedKey],
   );
 
-  const effectiveCenter: LatLngExpression = selected
-    ? [selected.position.latitude, selected.position.longitude]
-    : vehicles.length > 0
-      ? [vehicles[0].position.latitude, vehicles[0].position.longitude]
+  const selectedWithValidPosition = selected && Number.isFinite(selected.position.latitude) && Number.isFinite(selected.position.longitude) && (selected.position.latitude !== 0 || selected.position.longitude !== 0) ? selected : null;
+  const firstWithValidPosition = vehicles.find((vehicle) => Number.isFinite(vehicle.position.latitude) && Number.isFinite(vehicle.position.longitude) && (vehicle.position.latitude !== 0 || vehicle.position.longitude !== 0));
+  const effectiveCenter: LatLngExpression = selectedWithValidPosition
+    ? [selectedWithValidPosition.position.latitude, selectedWithValidPosition.position.longitude]
+    : firstWithValidPosition
+      ? [firstWithValidPosition.position.latitude, firstWithValidPosition.position.longitude]
       : [20, 0];
 
   return (
@@ -88,14 +91,16 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
         {vehicles.map((v) => {
           const lat = v.position.latitude;
           const lng = v.position.longitude;
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
 
           const status = getTelemetryStatus(v.position);
           const isOffline = status === "OFFLINE";
 
           return (
-            <Marker
-              key={v.key}
+            <Fragment key={v.key}>
+              {v.trail.length > 1 && <Polyline positions={v.trail} pathOptions={{ color: v.key === selectedKey ? "#34d399" : "#60a5fa", weight: v.key === selectedKey ? 5 : 3, opacity: v.key === selectedKey ? 0.9 : 0.45 }} />}
+              <Marker
+                key={`${v.key}-marker`}
               position={[lat, lng]}
               icon={createVehicleMarkerIcon({
                 courseDeg: v.position.course,
@@ -151,6 +156,7 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
                 </div>
               </Popup>
             </Marker>
+            </Fragment>
           );
         })}
       </MapContainer>

@@ -72,6 +72,7 @@ export default function LiveTrackingPage() {
 
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
   const [assignedError, setAssignedError] = useReactState<string | null>(null);
+  const [trails, setTrails] = useReactState<Record<string, [number, number][]>>({});
 
   const {
     positionsByDeviceId,
@@ -143,6 +144,53 @@ export default function LiveTrackingPage() {
     }));
   }, [assigned]);
 
+  useEffect(() => {
+    if (!orgId || vehiclesToTrack.length === 0) {
+      setTrails({});
+      return;
+    }
+
+    let cancelled = false;
+    const deviceIds = vehiclesToTrack.map((vehicle) => vehicle.deviceId);
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    supabase
+      .from("positions")
+      .select("device_id,latitude,longitude,recorded_at")
+      .eq("organization_id", orgId)
+      .in("device_id", deviceIds)
+      .gte("recorded_at", since)
+      .order("recorded_at", { ascending: true })
+      .limit(3000)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const next: Record<string, [number, number][]> = {};
+        for (const row of data ?? []) {
+          if (!Number.isFinite(row.latitude) || !Number.isFinite(row.longitude) || (row.latitude === 0 && row.longitude === 0)) continue;
+          (next[row.device_id] ??= []).push([row.latitude, row.longitude] as [number, number]);
+        }
+        setTrails(next);
+      });
+
+    return () => { cancelled = true; };
+  }, [orgId, vehiclesToTrack]);
+
+  useEffect(() => {
+    setTrails((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const vehicle of vehiclesToTrack) {
+        const position = positionsByDeviceId[vehicle.deviceId];
+        if (!position || !Number.isFinite(position.latitude) || !Number.isFinite(position.longitude) || (position.latitude === 0 && position.longitude === 0)) continue;
+        const points = next[vehicle.deviceId] ?? [];
+        const last = points[points.length - 1];
+        if (last?.[0] === position.latitude && last?.[1] === position.longitude) continue;
+        next[vehicle.deviceId] = [...points, [position.latitude, position.longitude] as [number, number]].slice(-300);
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [positionsByDeviceId, vehiclesToTrack]);
+
   const statusByDevice = useMemo(() => {
     const result: Record<string, TelemetryStatus> = {};
     for (const vehicle of vehiclesToTrack) {
@@ -167,16 +215,17 @@ export default function LiveTrackingPage() {
       .map((v) => {
         const pos = positionsByDeviceId[v.deviceId];
         if (!pos) return null;
-        return {
-          key: v.key,
-          deviceId: v.deviceId,
-          vehicleName: v.vehicleName,
-          registration: v.registration,
-          position: pos,
-        };
+      return {
+        key: v.key,
+        deviceId: v.deviceId,
+        vehicleName: v.vehicleName,
+        registration: v.registration,
+        position: pos,
+        trail: trails[v.deviceId] ?? [],
+      };
       })
       .filter(Boolean) as LiveMapVehicle[];
-  }, [filtered, positionsByDeviceId]);
+  }, [filtered, positionsByDeviceId, trails]);
 
   const stats = useMemo(() => {
     const counts = { tracked: vehiclesToTrack.length, moving: 0, idling: 0, stopped: 0, offline: 0, noData: 0, unknown: 0 };
