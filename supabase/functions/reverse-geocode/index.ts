@@ -21,7 +21,7 @@ interface GoogleGeocodingResponse {
 }
 
 interface GooglePlacesResponse {
-  places?: Array<{ displayName?: { text?: string } }>;
+  places?: Array<{ displayName?: { text?: string }; formattedAddress?: string }>;
   error?: { message?: string };
 }
 
@@ -72,7 +72,7 @@ serve(async (req) => {
     return jsonResponse({ error: "Google reverse geocoding is not configured", code: "GOOGLE_MAPS_NOT_CONFIGURED" }, 503);
   }
 
-  let body: { organizationId?: unknown; positions?: unknown };
+  let body: { organizationId?: unknown; positions?: unknown; mode?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -100,23 +100,37 @@ serve(async (req) => {
   }
   if (!membership) return jsonResponse({ error: "Forbidden" }, 403);
 
+  const historyMode = body.mode === "history";
+  const forceRefresh = body.force === true;
   const deviceIds = [...new Set(requestedPositions.map((position) => position.deviceId))];
-  const { data: latestRows, error: latestError } = await admin
-    .from("latest_positions")
-    .select("device_id,recorded_at,latitude,longitude,address,place_name")
-    .eq("organization_id", organizationId)
-    .in("device_id", deviceIds);
-  if (latestError) {
-    console.error("[reverse-geocode] latest position lookup failed", latestError);
-    return jsonResponse({ error: "Unable to load current positions" }, 500);
+  const recordedAts = [...new Set(requestedPositions.map((position) => position.recordedAt))];
+  const positionQuery = historyMode
+    ? admin
+        .from("positions")
+        .select("device_id,recorded_at,latitude,longitude,address,place_name")
+        .eq("organization_id", organizationId)
+        .in("device_id", deviceIds)
+        .in("recorded_at", recordedAts)
+    : admin
+        .from("latest_positions")
+        .select("device_id,recorded_at,latitude,longitude,address,place_name")
+        .eq("organization_id", organizationId)
+        .in("device_id", deviceIds);
+  const { data: positionRows, error: positionError } = await positionQuery;
+  if (positionError) {
+    console.error("[reverse-geocode] position lookup failed", positionError);
+    return jsonResponse({ error: "Unable to load positions" }, 500);
   }
 
-  const latestByDevice = new Map((latestRows ?? []).map((row) => [row.device_id, row]));
+  const positionKey = (deviceId: string, recordedAt: string) => `${deviceId}:${recordedAt}`;
+  const positionsByKey = new Map(
+    (positionRows ?? []).map((row) => [historyMode ? positionKey(row.device_id, row.recorded_at) : row.device_id, row]),
+  );
   const eligible = requestedPositions.filter((position) => {
-    const current = latestByDevice.get(position.deviceId);
+    const current = positionsByKey.get(historyMode ? positionKey(position.deviceId, position.recordedAt) : position.deviceId);
     return (
       current &&
-      current.recorded_at === position.recordedAt &&
+      new Date(current.recorded_at).getTime() === new Date(position.recordedAt).getTime() &&
       Math.abs(current.latitude - position.latitude) < 0.000001 &&
       Math.abs(current.longitude - position.longitude) < 0.000001
     );
@@ -127,9 +141,10 @@ serve(async (req) => {
   let failures = 0;
 
   for (const position of eligible) {
-    const current = latestByDevice.get(position.deviceId)!;
-    let address = current.address ?? undefined;
-    let placeName = current.place_name ?? undefined;
+    const key = historyMode ? positionKey(position.deviceId, position.recordedAt) : position.deviceId;
+    const current = positionsByKey.get(key)!;
+    let address = forceRefresh ? undefined : current.address ?? undefined;
+    let placeName = forceRefresh ? undefined : current.place_name ?? undefined;
 
     try {
       if (!address) {
@@ -155,11 +170,10 @@ serve(async (req) => {
           headers: {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": googleApiKey,
-            "X-Goog-FieldMask": "places.displayName",
+            "X-Goog-FieldMask": "places.displayName,places.formattedAddress",
           },
           body: JSON.stringify({
-            includedTypes: ["establishment"],
-            maxResultCount: 1,
+            maxResultCount: 5,
             rankPreference: "DISTANCE",
             locationRestriction: {
               circle: {
@@ -180,32 +194,36 @@ serve(async (req) => {
         }
       }
 
-      if (address) addresses[position.deviceId] = address;
-      if (placeName) placeNames[position.deviceId] = placeName;
+      if (address) addresses[key] = address;
+      if (placeName) placeNames[key] = placeName;
       if (!address && !placeName) continue;
 
       const cache: Record<string, string> = {};
       if (address) cache.address = address;
       if (placeName) cache.place_name = placeName;
-      const [latestUpdate, historyUpdate] = await Promise.all([
+      const updates = [
         admin
-          .from("latest_positions")
+          .from(historyMode ? "positions" : "latest_positions")
           .update(cache)
           .eq("organization_id", organizationId)
           .eq("device_id", position.deviceId)
           .eq("recorded_at", position.recordedAt),
-        admin
-          .from("positions")
-          .update(cache)
-          .eq("organization_id", organizationId)
-          .eq("device_id", position.deviceId)
-          .eq("recorded_at", position.recordedAt),
-      ]);
-      if (latestUpdate.error || historyUpdate.error) {
+      ];
+      if (!historyMode) {
+        updates.push(
+          admin
+            .from("positions")
+            .update(cache)
+            .eq("organization_id", organizationId)
+            .eq("device_id", position.deviceId)
+            .eq("recorded_at", position.recordedAt),
+        );
+      }
+      const updateResults = await Promise.all(updates);
+      if (updateResults.some((result) => result.error)) {
         console.error("[reverse-geocode] location cache update failed", {
           deviceId: position.deviceId,
-          latestError: latestUpdate.error,
-          historyError: historyUpdate.error,
+          errors: updateResults.map((result) => result.error),
         });
       }
     } catch (error) {

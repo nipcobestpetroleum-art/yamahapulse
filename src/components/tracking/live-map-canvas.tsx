@@ -150,8 +150,9 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: LiveMa
                     </div>
                   </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    {v.position.address ? v.position.address : "Address not available"}
+                  <div className="space-y-0.5 text-xs text-muted-foreground">
+                    <div className="font-medium text-primary">{v.position.place_name ?? "Nearby place not available"}</div>
+                    <div>{v.position.address ?? "Address not available"}</div>
                   </div>
                 </div>
               </Popup>

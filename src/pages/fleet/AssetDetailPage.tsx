@@ -80,6 +80,8 @@ export default function AssetDetailPage() {
   const [device, setDevice] = useState<{ id: string; name: string; imei: string; engine_immobilized: boolean } | null>(null);
   const [vehicle, setVehicle] = useState<{ id: string; name: string; registration_number: string | null } | null>(null);
   const [history, setHistory] = useState<Position[]>([]);
+  const [historyAddresses, setHistoryAddresses] = useState<Record<string, string>>({});
+  const [historyPlaceNames, setHistoryPlaceNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [command, setCommand] = useState<"ENGINE_CUT" | "ENGINE_RESUME" | null>(null);
   const [password, setPassword] = useState("");
@@ -108,12 +110,49 @@ export default function AssetDetailPage() {
     });
   }, [currentOrg, deviceId]);
 
+  useEffect(() => {
+    if (!currentOrg || !deviceId || history.length === 0) return;
+    const validHistory = history.filter((point) =>
+      Number.isFinite(point.latitude) &&
+      Number.isFinite(point.longitude) &&
+      (point.latitude !== 0 || point.longitude !== 0),
+    );
+    if (validHistory.length === 0) return;
+    const sample = validHistory.length <= 25
+      ? validHistory
+      : Array.from({ length: 25 }, (_, index) => validHistory[Math.floor(index * (validHistory.length - 1) / 24)]);
+    let cancelled = false;
+
+    supabase.functions
+      .invoke("reverse-geocode", {
+        body: {
+          mode: "history",
+          force: true,
+          organizationId: currentOrg.id,
+          positions: sample.map((point) => ({
+            deviceId,
+            recordedAt: point.recorded_at,
+            latitude: point.latitude,
+            longitude: point.longitude,
+          })),
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        if (data.addresses) setHistoryAddresses((current) => ({ ...current, ...(data.addresses as Record<string, string>) }));
+        if (data.placeNames) setHistoryPlaceNames((current) => ({ ...current, ...(data.placeNames as Record<string, string>) }));
+      });
+
+    return () => { cancelled = true; };
+  }, [currentOrg, deviceId, history]);
+
   const route = useMemo(() => history.filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && (p.latitude !== 0 || p.longitude !== 0)), [history]);
   const routePoints = route.map((p) => [p.latitude, p.longitude] as LatLngExpression);
   const startPosition = route[0] ?? null;
   const endPosition = route[route.length - 1] ?? null;
   const currentPosition = latest ?? endPosition;
   const center: LatLngExpression = currentPosition ? [currentPosition.latitude, currentPosition.longitude] : [20, 0];
+  const locationKey = (point: Position) => `${deviceId}:${point.recorded_at}`;
 
   const sendCommand = async () => {
     if (!command || !device || !currentOrg || !user || !vehicle) return;
@@ -160,6 +199,8 @@ export default function AssetDetailPage() {
           {canControl && <Card className="border-rose-500/25 bg-rose-500/5"><CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold text-rose-300"><LockKeyhole className="h-4 w-4" />Engine control</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Commands require your password and a reason. Never immobilize a moving vehicle.</p><Button variant={device.engine_immobilized ? "default" : "destructive"} className="w-full" onClick={() => setCommand(device.engine_immobilized ? "ENGINE_RESUME" : "ENGINE_CUT")}><LockKeyhole className="mr-2 h-4 w-4" />{device.engine_immobilized ? "Restore engine" : "Immobilize engine"}</Button></CardContent></Card>}
         </div>
       </div>
+
+      <Card className="border-border bg-card/40"><CardHeader><CardTitle className="text-sm font-semibold">Address trail</CardTitle></CardHeader><CardContent><div className="max-h-[260px] overflow-auto rounded-xl border border-border"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-card"><tr className="border-b border-border"><th className="px-3 py-2">Time</th><th className="px-3 py-2">Nearby place</th><th className="px-3 py-2">Address</th><th className="px-3 py-2">Coordinates</th></tr></thead><tbody>{route.slice().reverse().filter((p) => p.address || p.place_name || historyAddresses[locationKey(p)] || historyPlaceNames[locationKey(p)]).map((p) => { const key = locationKey(p); return <tr key={`address-${p.id}`} className="border-b border-border/60"><td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{format(new Date(p.recorded_at), "dd MMM yyyy, HH:mm:ss")}</td><td className="px-3 py-2 font-medium text-primary">{p.place_name ?? historyPlaceNames[key] ?? "—"}</td><td className="max-w-[360px] truncate px-3 py-2 text-muted-foreground">{p.address ?? historyAddresses[key] ?? "—"}</td><td className="px-3 py-2 font-mono text-[10px]">{p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}</td></tr>; })}</tbody></table></div><p className="mt-2 text-[11px] text-muted-foreground">Addresses are matched to the exact GPS timestamp and coordinate. The coordinate remains the authoritative source when Google has no precise place result.</p></CardContent></Card>
 
       <Card className="border-border bg-card/40"><CardHeader><CardTitle className="text-sm font-semibold">Today’s telemetry history</CardTitle></CardHeader><CardContent><div className="max-h-[360px] overflow-auto rounded-xl border border-border"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-card"><tr className="border-b border-border"><th className="px-3 py-2">Time</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Speed</th><th className="px-3 py-2">Battery</th><th className="px-3 py-2">Ignition</th><th className="px-3 py-2">Coordinates</th></tr></thead><tbody>{route.slice().reverse().map((p) => { const pointStatus = getTelemetryStatus(p); return <tr key={p.id} className="border-b border-border/60"><td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{format(new Date(p.recorded_at), "dd MMM yyyy, HH:mm:ss")}</td><td className="px-3 py-2">{TELEMETRY_STATUS_LABELS[pointStatus]}</td><td className="px-3 py-2">{p.speed != null ? `${Math.round(p.speed)} km/h` : "—"}</td><td className="px-3 py-2">{p.battery_level != null ? `${Math.round(p.battery_level)}%` : "—"}</td><td className="px-3 py-2">{p.ignition == null ? "—" : p.ignition ? "On" : "Off"}</td><td className="px-3 py-2 font-mono text-[10px]">{p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}</td></tr>; })}</tbody></table></div></CardContent></Card>
 

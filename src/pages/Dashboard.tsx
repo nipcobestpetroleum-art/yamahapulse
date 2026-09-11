@@ -170,7 +170,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
     const unresolved = assets
       .filter((asset) => {
         const position = asset.position;
-        if (!position || (position.address && position.place_name) || (geocodedAddresses[asset.deviceId] && nearbyPlaceNames[asset.deviceId])) return false;
+        if (!position || (geocodedAddresses[asset.deviceId] && nearbyPlaceNames[asset.deviceId])) return false;
         return !geocodingAttempts.current.has(`${asset.deviceId}:${position.recorded_at}`);
       })
       .slice(0, 25);
@@ -185,6 +185,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
       .invoke("reverse-geocode", {
         body: {
           organizationId,
+          force: true,
           positions: unresolved.map((asset) => ({
             deviceId: asset.deviceId,
             recordedAt: asset.position!.recorded_at,
@@ -275,9 +276,9 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
                 const position = asset.position;
                 const status = getTelemetryStatus(position);
                 const coordinates = position ? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : null;
-                const location = position
-                  ? position.address ?? geocodedAddresses[asset.deviceId] ?? coordinates
-                  : "No location data";
+                const placeName = position?.place_name ?? nearbyPlaceNames[asset.deviceId] ?? null;
+                const address = position?.address ?? geocodedAddresses[asset.deviceId] ?? null;
+                const location = position ? placeName ?? address ?? coordinates : "No location data";
                 return (
                   <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5">
                     <div className="min-w-0"><p className="truncate font-medium">{asset.vehicleName}</p><p className="truncate text-xs text-muted-foreground">{asset.deviceName} · IMEI {asset.imei}</p></div>
@@ -285,9 +286,8 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
                     <span className="text-muted-foreground">{position?.speed != null ? `${Math.round(position.speed)} km/h` : "—"}</span>
                     <div className="max-w-[220px] min-w-0 text-xs text-muted-foreground" title={coordinates ?? undefined}>
                       <p className="truncate"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location}</p>
-                      {position && (position.place_name ?? nearbyPlaceNames[asset.deviceId]) && (
-                        <p className="mt-0.5 truncate pl-5 text-[10px] font-medium text-primary/80">{position.place_name ?? nearbyPlaceNames[asset.deviceId]}</p>
-                      )}
+                      {placeName && address && <p className="mt-0.5 truncate pl-5 text-[10px] text-muted-foreground">{address}</p>}
+                      {placeName && <p className="mt-0.5 truncate pl-5 text-[10px] font-medium text-primary/80">Nearby place</p>}
                     </div>
                     <span className="whitespace-nowrap text-xs text-muted-foreground">{position ? format(new Date(position.recorded_at), "dd MMM yyyy, HH:mm:ss") : "—"}</span>
                   </Link>

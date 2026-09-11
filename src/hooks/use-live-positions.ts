@@ -45,6 +45,10 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
 
   useEffect(() => {
     fetchLatest();
+    const refreshTimer = window.setInterval(() => {
+      void fetchLatest();
+    }, 5000);
+    return () => window.clearInterval(refreshTimer);
   }, [fetchLatest]);
 
   useEffect(() => {
