@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS latest_positions_select ON public.latest_positions;

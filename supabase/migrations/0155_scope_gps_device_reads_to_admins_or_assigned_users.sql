@@ -1,0 +1,1 @@
+CREATE POLICY gps_devices_select ON public.gps_devices FOR SELECT TO authenticated USING (public.user_can_access_asset(organization_id, id, NULL));

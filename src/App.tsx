@@ -50,6 +50,7 @@ import SensorsPage from "./pages/assets/SensorsPage";
 import InventoryPage from "./pages/assets/InventoryPage";
 import TechniciansPage from "./pages/assets/TechniciansPage";
 import UsersPage from "./pages/admin/UsersPage";
+import UserAssetAccessPage from "./pages/admin/UserAssetAccessPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
 import SystemHealthPage from "./pages/admin/SystemHealthPage";
@@ -146,6 +147,7 @@ const App = () => (
 
               {/* Admin */}
               <Route path="/admin/users" element={<UsersPage />} />
+              <Route path="/admin/user-asset-access" element={<UserAssetAccessPage />} />
               <Route path="/admin/organization" element={<OrganizationPage />} />
               <Route path="/admin/branches" element={<BranchesPage />} />
               <Route path="/admin/system-health" element={<SystemHealthPage />} />

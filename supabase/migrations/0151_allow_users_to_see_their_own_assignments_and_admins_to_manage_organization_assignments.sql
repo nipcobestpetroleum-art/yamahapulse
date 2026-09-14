@@ -1,0 +1,1 @@
+CREATE POLICY user_asset_access_select ON public.user_asset_access FOR SELECT TO authenticated USING (user_id = auth.uid() OR has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN']));

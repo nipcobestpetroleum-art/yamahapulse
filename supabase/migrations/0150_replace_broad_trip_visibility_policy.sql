@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS trips_select ON public.trips;

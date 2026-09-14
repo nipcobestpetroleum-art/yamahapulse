@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS positions_select ON public.positions;

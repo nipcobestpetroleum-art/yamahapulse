@@ -1,0 +1,1 @@
+GRANT SELECT ON TABLE public.asset_alert_deliveries TO authenticated;

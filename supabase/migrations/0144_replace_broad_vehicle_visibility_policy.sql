@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS vehicles_select ON public.vehicles;

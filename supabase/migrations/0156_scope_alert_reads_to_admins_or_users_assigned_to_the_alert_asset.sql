@@ -1,0 +1,1 @@
+CREATE POLICY alerts_select ON public.alerts FOR SELECT TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER']) OR (device_id IS NOT NULL AND public.user_can_access_asset(organization_id, device_id, NULL)) OR (vehicle_id IS NOT NULL AND public.user_can_access_asset(organization_id, NULL, vehicle_id)));

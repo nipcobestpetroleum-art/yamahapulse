@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS device_events_select ON public.device_events;

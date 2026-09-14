@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.user_asset_access FROM anon;

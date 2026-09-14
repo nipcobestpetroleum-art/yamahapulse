@@ -171,6 +171,7 @@ export const NAV_SECTIONS: NavSection[] = [
     roles: ADMIN_ROLES,
     items: [
       { title: "Users", href: "/admin/users", icon: Users, implemented: true },
+      { title: "User asset access", href: "/admin/user-asset-access", icon: Link2, implemented: true },
       { title: "System Health", href: "/admin/system-health", icon: HeartPulse, implemented: true },
       { title: "Roles", href: "/admin/roles", icon: ShieldCheck },
       { title: "Organization", href: "/admin/organization", icon: Landmark, implemented: true },

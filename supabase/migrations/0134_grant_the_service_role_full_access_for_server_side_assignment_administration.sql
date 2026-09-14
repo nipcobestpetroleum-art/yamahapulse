@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_asset_access TO service_role;

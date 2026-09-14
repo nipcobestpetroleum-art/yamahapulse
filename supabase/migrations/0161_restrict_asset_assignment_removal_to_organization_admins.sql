@@ -1,0 +1,1 @@
+CREATE POLICY user_asset_access_delete ON public.user_asset_access FOR DELETE TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN']));

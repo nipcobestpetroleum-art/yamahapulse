@@ -1,0 +1,1 @@
+CREATE POLICY vehicles_select ON public.vehicles FOR SELECT TO authenticated USING (public.user_can_access_asset(organization_id, NULL, id));

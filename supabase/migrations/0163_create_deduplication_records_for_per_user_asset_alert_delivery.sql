@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS public.asset_alert_deliveries (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, event_id uuid NOT NULL, user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, channel text NOT NULL CHECK (channel IN ('EMAIL','SMS')), sent_at timestamptz NOT NULL DEFAULT now(), UNIQUE (event_id, user_id, channel));

@@ -1,0 +1,1 @@
+CREATE POLICY asset_alert_deliveries_select ON public.asset_alert_deliveries FOR SELECT TO authenticated USING (user_id = auth.uid());

@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS device_assignments_select ON public.device_assignments;

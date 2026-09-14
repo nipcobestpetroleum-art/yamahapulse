@@ -1,0 +1,1 @@
+CREATE POLICY latest_positions_select ON public.latest_positions FOR SELECT TO authenticated USING (public.user_can_access_asset(organization_id, device_id, vehicle_id));

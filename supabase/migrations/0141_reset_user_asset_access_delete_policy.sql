@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS user_asset_access_delete ON public.user_asset_access;

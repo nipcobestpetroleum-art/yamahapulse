@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS gps_devices_select ON public.gps_devices;

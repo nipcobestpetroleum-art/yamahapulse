@@ -1,0 +1,1 @@
+ALTER TABLE public.asset_alert_deliveries ENABLE ROW LEVEL SECURITY;

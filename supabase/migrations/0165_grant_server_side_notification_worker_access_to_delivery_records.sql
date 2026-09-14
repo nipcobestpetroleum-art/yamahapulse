@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.asset_alert_deliveries TO service_role;

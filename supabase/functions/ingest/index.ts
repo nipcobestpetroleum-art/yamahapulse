@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { sendAssignedAssetEventNotifications } from "../_shared/asset-alert-notifications.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -300,6 +301,13 @@ serve(async (req) => {
           console.error("[ingest] alert email dispatch failed", err);
         }
       }
+      if (r.organization_id && r.device_id && r.recorded_at) {
+        try {
+          await sendAssignedAssetEventNotifications(supabase, r.organization_id, r.device_id, r.vehicle_id ?? null, r.recorded_at);
+        } catch (err) {
+          console.error("[ingest] assigned asset notification dispatch failed", err);
+        }
+      }
     }
 
     return corsResponse({ ok: true, results });
@@ -348,6 +356,13 @@ serve(async (req) => {
       });
     } catch (err) {
       console.error("[ingest] alert email dispatch failed", err);
+    }
+  }
+  if (result.organization_id && result.device_id && result.recorded_at) {
+    try {
+      await sendAssignedAssetEventNotifications(supabase, result.organization_id, result.device_id, result.vehicle_id ?? null, result.recorded_at);
+    } catch (err) {
+      console.error("[ingest] assigned asset notification dispatch failed", err);
     }
   }
 

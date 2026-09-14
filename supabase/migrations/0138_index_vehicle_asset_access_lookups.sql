@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS user_asset_access_vehicle_idx ON public.user_asset_access (organization_id, vehicle_id);

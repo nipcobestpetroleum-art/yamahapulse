@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS asset_alert_deliveries_event_idx ON public.asset_alert_deliveries (event_id);

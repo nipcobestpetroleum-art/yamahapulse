@@ -1,0 +1,1 @@
+ALTER TABLE public.user_asset_access ENABLE ROW LEVEL SECURITY;
