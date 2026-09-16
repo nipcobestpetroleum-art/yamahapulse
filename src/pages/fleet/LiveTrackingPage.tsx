@@ -73,6 +73,7 @@ export default function LiveTrackingPage() {
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
   const [assignedError, setAssignedError] = useReactState<string | null>(null);
   const [trails, setTrails] = useReactState<Record<string, [number, number][]>>({});
+  const [roadTrails, setRoadTrails] = useReactState<Record<string, [number, number][]>>({});
 
   const {
     positionsByDeviceId,
@@ -191,6 +192,36 @@ export default function LiveTrackingPage() {
     });
   }, [positionsByDeviceId, vehiclesToTrack]);
 
+  const routeRequestSignature = useMemo(
+    () => vehiclesToTrack.map((vehicle) => `${vehicle.deviceId}:${Math.floor((trails[vehicle.deviceId]?.length ?? 0) / 10)}`).join("|"),
+    [trails, vehiclesToTrack],
+  );
+
+  useEffect(() => {
+    if (!orgId || !routeRequestSignature || Object.keys(trails).length === 0) {
+      setRoadTrails({});
+      return;
+    }
+    let cancelled = false;
+    const tracks = vehiclesToTrack
+      .map((vehicle) => ({
+        deviceId: vehicle.deviceId,
+        points: (trails[vehicle.deviceId] ?? []).map(([latitude, longitude]) => ({ latitude, longitude })),
+      }))
+      .filter((track) => track.points.length > 1);
+    if (tracks.length === 0) return;
+
+    supabase.functions.invoke("route-history", { body: { tracks } }).then(({ data, error }) => {
+      if (cancelled || error || !data?.trails) return;
+      const next: Record<string, [number, number][]> = {};
+      for (const [deviceId, points] of Object.entries(data.trails as Record<string, { latitude: number; longitude: number }[]>)) {
+        next[deviceId] = points.map((point) => [point.latitude, point.longitude] as [number, number]);
+      }
+      setRoadTrails(next);
+    });
+    return () => { cancelled = true; };
+  }, [orgId, routeRequestSignature, vehiclesToTrack]);
+
   const statusByDevice = useMemo(() => {
     const result: Record<string, TelemetryStatus> = {};
     for (const vehicle of vehiclesToTrack) {
@@ -221,7 +252,7 @@ export default function LiveTrackingPage() {
         vehicleName: v.vehicleName,
         registration: v.registration,
         position: pos,
-        trail: trails[v.deviceId] ?? [],
+        trail: roadTrails[v.deviceId] ?? trails[v.deviceId] ?? [],
       };
       })
       .filter(Boolean) as LiveMapVehicle[];
