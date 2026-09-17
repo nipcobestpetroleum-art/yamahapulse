@@ -1,0 +1,1 @@
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'latest_positions_valid_coordinates') THEN ALTER TABLE public.latest_positions ADD CONSTRAINT latest_positions_valid_coordinates CHECK (latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180 AND NOT (latitude = 0 AND longitude = 0)); END IF; END $$;
