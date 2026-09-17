@@ -6,6 +6,7 @@ interface UseLivePositionsResult {
   positionsByDeviceId: Record<string, LatestPosition>;
   loading: boolean;
   error: string | null;
+  realtimeStatus: "CONNECTING" | "CONNECTED" | "DEGRADED";
   refetch: () => Promise<void>;
 }
 
@@ -15,6 +16,7 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<"CONNECTING" | "CONNECTED" | "DEGRADED">("CONNECTING");
 
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -53,6 +55,7 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
 
   useEffect(() => {
     if (!organizationId) return;
+    setRealtimeStatus("CONNECTING");
 
     // Teardown old channel if org changes / re-mount
     if (realtimeChannelRef.current) {
@@ -81,9 +84,14 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
       );
 
     channel.subscribe((status) => {
-      // status: SUBSCRIBED | CHANNEL_ERROR | TIMED_OUT | CLOSED
-      // Keep quiet; UI shows "Connecting..." based on loading state.
-      void status;
+      if (status === "SUBSCRIBED") {
+        setRealtimeStatus("CONNECTED");
+        void fetchLatest();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        setRealtimeStatus("DEGRADED");
+      } else {
+        setRealtimeStatus("CONNECTING");
+      }
     });
 
     realtimeChannelRef.current = channel;
@@ -95,7 +103,7 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
   }, [organizationId]);
 
   return useMemo(
-    () => ({ positionsByDeviceId, loading, error, refetch: fetchLatest }),
-    [positionsByDeviceId, loading, error, fetchLatest],
+    () => ({ positionsByDeviceId, loading, error, realtimeStatus, refetch: fetchLatest }),
+    [positionsByDeviceId, loading, error, realtimeStatus, fetchLatest],
   );
 }

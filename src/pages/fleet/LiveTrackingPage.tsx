@@ -79,6 +79,7 @@ export default function LiveTrackingPage() {
     positionsByDeviceId,
     loading: positionsLoading,
     error: positionsError,
+    realtimeStatus,
     refetch,
   } = useLivePositions(orgId);
 
@@ -290,11 +291,11 @@ export default function LiveTrackingPage() {
               variant="outline"
               className={cn(
                 "border-border bg-card/40",
-                positionsLoading ? "opacity-70" : "",
+                realtimeStatus !== "CONNECTED" ? "opacity-70" : "",
               )}
             >
               <Signal className="mr-2 h-4 w-4 text-primary" />
-              {positionsLoading ? "Connecting…" : "Live updates on"}
+              {positionsLoading || realtimeStatus === "CONNECTING" ? "Connecting…" : realtimeStatus === "DEGRADED" ? "Live updates degraded" : "Live updates on"}
             </Badge>
           </div>
         }
