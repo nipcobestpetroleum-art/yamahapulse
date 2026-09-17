@@ -12,6 +12,7 @@ import {
   Link2,
   MapPin,
   Radio,
+  Receipt,
   RefreshCw,
   WifiOff,
   Package,
@@ -43,6 +44,8 @@ interface DashStats {
   devicesInStock: number;
   devicesFaulty: number;
   fleetsTotal: number;
+  expenseTotal: number;
+  pendingExpenses: number;
   recentVehicles: Vehicle[];
 }
 
@@ -319,7 +322,7 @@ export default function Dashboard() {
     };
 
     (async () => {
-      const [vTotal, vActive, vMaint, vInactive, dTotal, dAssigned, dStock, dFaulty, fTotal, recent] =
+      const [vTotal, vActive, vMaint, vInactive, dTotal, dAssigned, dStock, dFaulty, fTotal, expenseTotal, pendingExpenses, recent] =
         await Promise.all([
           count("vehicles"),
           count("vehicles", "ACTIVE"),
@@ -330,6 +333,8 @@ export default function Dashboard() {
           count("gps_devices", "IN_STOCK"),
           count("gps_devices", "FAULTY"),
           count("fleets"),
+          supabase.from("expenses").select("amount,tax_amount").eq("organization_id", currentOrg.id).eq("status", "APPROVED"),
+          count("expenses", "PENDING"),
           supabase
             .from("vehicles")
             .select("*")
@@ -348,6 +353,8 @@ export default function Dashboard() {
         devicesInStock: dStock.count ?? 0,
         devicesFaulty: dFaulty.count ?? 0,
         fleetsTotal: fTotal.count ?? 0,
+        expenseTotal: ((expenseTotal.data ?? []) as { amount: number; tax_amount: number }[]).reduce((sum, expense) => sum + Number(expense.amount) + Number(expense.tax_amount), 0),
+        pendingExpenses: pendingExpenses.count ?? 0,
         recentVehicles: (recent.data ?? []) as Vehicle[],
       });
     })();
@@ -399,11 +406,12 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <KpiCard icon={Car} label="Total vehicles" value={stats.vehiclesTotal} sub={`${stats.fleetsTotal} fleets`} href="/vehicles" />
             <KpiCard icon={Activity} label="Active vehicles" value={stats.vehiclesActive} sub={`${stats.vehiclesMaintenance} in maintenance`} href="/vehicles?status=ACTIVE" />
             <KpiCard icon={Cpu} label="GPS devices" value={stats.devicesTotal} sub={`${stats.devicesInStock} in stock`} href="/devices" />
             <KpiCard icon={Link2} label="Assigned devices" value={stats.devicesAssigned} sub={`${stats.devicesFaulty} faulty`} href="/fleet/live" />
+            <KpiCard icon={Receipt} label="Approved expenses" value={stats.expenseTotal.toFixed(2)} sub={`${stats.pendingExpenses} pending approval`} href="/expenses" />
           </div>
 
           <FleetOperationsCard organizationId={currentOrg.id} />

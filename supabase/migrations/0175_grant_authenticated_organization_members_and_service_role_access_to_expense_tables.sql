@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.expenses, public.recurring_expenses TO authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.expenses, public.recurring_expenses TO service_role;

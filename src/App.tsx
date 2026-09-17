@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import ProfilePage from "./pages/ProfilePage";
 import ReportsPage from "./pages/reports/ReportsPage";
+import ExpensesPage from "./pages/finance/ExpensesPage";
 import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/expenses" element={<ExpensesPage />} />
               <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />

@@ -1,0 +1,1 @@
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY; ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
