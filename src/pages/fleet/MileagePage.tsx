@@ -3,8 +3,8 @@ import { format } from "date-fns";
 import {
   Activity,
   BatteryCharging,
-  CalendarDays,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Gauge,
   Radio,
@@ -131,6 +131,7 @@ export default function MileagePage() {
   const [driverName, setDriverName] = useState<string | null>(null);
   const [loadingTrackers, setLoadingTrackers] = useState(true);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [datePage, setDatePage] = useState(0);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -175,7 +176,16 @@ export default function MileagePage() {
     });
   }, [currentOrg, selectedTracker, year, month]);
 
+  useEffect(() => {
+    setDatePage(0);
+  }, [selectedDeviceId, year, month]);
+
   const dailyMetrics = useMemo(() => buildDailyMetrics(points), [points]);
+  const pageSize = 3;
+  const pageCount = Math.max(1, Math.ceil(dailyMetrics.length / pageSize));
+  const visibleDailyMetrics = dailyMetrics.slice(datePage * pageSize, (datePage + 1) * pageSize);
+  const firstVisibleDate = visibleDailyMetrics[0]?.date ?? null;
+  const lastVisibleDate = visibleDailyMetrics[visibleDailyMetrics.length - 1]?.date ?? null;
   const monthDistance = dailyMetrics.reduce((sum, day) => sum + day.distance, 0);
   const totalStops = dailyMetrics.reduce((sum, day) => sum + day.stops, 0);
   const voltageValues = points.map((point) => point.battery_voltage_mv).filter((value): value is number => value !== null && value > 0);
@@ -231,9 +241,11 @@ export default function MileagePage() {
           <div className="hidden min-w-[1080px] grid-cols-[260px_210px_160px_170px_190px_180px] border-b border-border bg-muted/25 px-5 py-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground xl:grid">
             <div>Date & day</div><div>Distance covered</div><div>Stops / idle times</div><div>Battery history</div><div>Latest telemetry</div><div>Assigned driver</div>
           </div>
-          {loadingMetrics ? <div className="space-y-3 p-5"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : dailyMetrics.length === 0 ? <div className="p-12 text-center"><Gauge className="mx-auto h-9 w-9 text-muted-foreground" /><p className="mt-3 font-semibold">No telemetry logged for {monthLabels[month]} {year}</p><p className="mt-1 text-sm text-muted-foreground">Choose another month or select a different tracker.</p></div> : <div className="divide-y divide-border/70">{dailyMetrics.map((day) => <MileageRow key={day.date} day={day} driverName={driverName} vehicleName={selectedTracker?.vehicleName ?? "Tracker"} />)}</div>}
+          {loadingMetrics ? <div className="space-y-3 p-5"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : dailyMetrics.length === 0 ? <div className="p-12 text-center"><Gauge className="mx-auto h-9 w-9 text-muted-foreground" /><p className="mt-3 font-semibold">No telemetry logged for {monthLabels[month]} {year}</p><p className="mt-1 text-sm text-muted-foreground">Choose another month or select a different tracker.</p></div> : <div className="divide-y divide-border/70">{visibleDailyMetrics.map((day) => <MileageRow key={day.date} day={day} driverName={driverName} vehicleName={selectedTracker?.vehicleName ?? "Tracker"} />)}</div>}
         </CardContent>
       </Card>
+
+      {dailyMetrics.length > 0 && <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/50 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="text-xs text-muted-foreground">Showing {firstVisibleDate && lastVisibleDate ? `${format(new Date(`${lastVisibleDate}T12:00:00`), "MMM d")} – ${format(new Date(`${firstVisibleDate}T12:00:00`), "MMM d, yyyy")}` : "—"} · Page {datePage + 1} of {pageCount}</div><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="rounded-xl border-border bg-background/50" onClick={() => setDatePage((page) => Math.max(0, page - 1))} disabled={datePage === 0}><ChevronLeft className="mr-1 h-4 w-4" />Previous dates</Button><Button type="button" variant="outline" size="sm" className="rounded-xl border-border bg-background/50" onClick={() => setDatePage((page) => Math.min(pageCount - 1, page + 1))} disabled={datePage >= pageCount - 1}>Next dates<ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground"><span><Radio className="mr-1 inline h-3.5 w-3.5 text-emerald-400" />Showing {dailyMetrics.length} logged day{dailyMetrics.length === 1 ? "" : "s"} for {monthLabels[month]} {year}</span><span>{latest ? `Latest device update ${format(new Date(latest.recorded_at), "dd MMM yyyy, HH:mm:ss")}` : "No latest device update"}</span></div>
     </div>
