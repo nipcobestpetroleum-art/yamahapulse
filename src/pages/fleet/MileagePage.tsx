@@ -52,7 +52,7 @@ type DailyMetric = {
   stops: number;
   points: TelemetryPoint[];
   battery: number[];
-  latest: TelemetryPoint;
+  latest: TelemetryPoint | null;
 };
 
 const EARTH_RADIUS_KM = 6371;
@@ -71,7 +71,7 @@ function isMoving(point: TelemetryPoint) {
   return point.movement === true || (point.speed ?? 0) > 2;
 }
 
-function buildDailyMetrics(points: TelemetryPoint[]) {
+function buildDailyMetrics(points: TelemetryPoint[], year: number, month: number) {
   const grouped = new Map<string, TelemetryPoint[]>();
   for (const point of points) {
     const key = point.recorded_at.slice(0, 10);
@@ -80,20 +80,24 @@ function buildDailyMetrics(points: TelemetryPoint[]) {
     grouped.set(key, day);
   }
 
-  return [...grouped.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayPoints]) => {
-    const ordered = [...dayPoints].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const lastDay = year === today.getFullYear() && month === today.getMonth() ? today.getDate() : daysInMonth;
+  return Array.from({ length: lastDay }, (_, index) => {
+    const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay - index).padStart(2, "0")}`;
+    const ordered = [...(grouped.get(date) ?? [])].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
     let distance = 0;
     let stops = 0;
-    for (let index = 1; index < ordered.length; index += 1) {
-      const previous = ordered[index - 1];
-      const current = ordered[index];
+    for (let pointIndex = 1; pointIndex < ordered.length; pointIndex += 1) {
+      const previous = ordered[pointIndex - 1];
+      const current = ordered[pointIndex];
       const gapMinutes = (new Date(current.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 60000;
       const segment = distanceBetween(previous, current);
       if (gapMinutes <= 30 && segment < 10) distance += segment;
       if (isMoving(previous) && !isMoving(current)) stops += 1;
     }
     const battery = ordered.map((point) => point.battery_voltage_mv).filter((value): value is number => value !== null && value > 0);
-    return { date, distance, stops, points: ordered, battery, latest: ordered[ordered.length - 1] } satisfies DailyMetric;
+    return { date, distance, stops, points: ordered, battery, latest: ordered[ordered.length - 1] ?? null } satisfies DailyMetric;
   });
 }
 
@@ -180,8 +184,8 @@ export default function MileagePage() {
     setDatePage(0);
   }, [selectedDeviceId, year, month]);
 
-  const dailyMetrics = useMemo(() => buildDailyMetrics(points), [points]);
-  const pageSize = 3;
+  const dailyMetrics = useMemo(() => buildDailyMetrics(points, year, month), [points, year, month]);
+  const pageSize = 4;
   const pageCount = Math.max(1, Math.ceil(dailyMetrics.length / pageSize));
   const visibleDailyMetrics = dailyMetrics.slice(datePage * pageSize, (datePage + 1) * pageSize);
   const firstVisibleDate = visibleDailyMetrics[0]?.date ?? null;
@@ -198,7 +202,7 @@ export default function MileagePage() {
     `${day.distance.toFixed(2)} km`,
     String(day.stops),
     formatVoltage(day.battery.length ? day.battery[day.battery.length - 1] : null),
-    format(new Date(day.latest.recorded_at), "HH:mm:ss"),
+    day.latest ? format(new Date(day.latest.recorded_at), "HH:mm:ss") : "No records",
     selectedTracker?.vehicleName ?? "",
     driverName ?? "",
   ]);
@@ -247,7 +251,7 @@ export default function MileagePage() {
 
       {dailyMetrics.length > 0 && <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/50 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="text-xs text-muted-foreground">Showing {firstVisibleDate && lastVisibleDate ? `${format(new Date(`${lastVisibleDate}T12:00:00`), "MMM d")} – ${format(new Date(`${firstVisibleDate}T12:00:00`), "MMM d, yyyy")}` : "—"} · Page {datePage + 1} of {pageCount}</div><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="rounded-xl border-border bg-background/50" onClick={() => setDatePage((page) => Math.max(0, page - 1))} disabled={datePage === 0}><ChevronLeft className="mr-1 h-4 w-4" />Previous dates</Button><Button type="button" variant="outline" size="sm" className="rounded-xl border-border bg-background/50" onClick={() => setDatePage((page) => Math.min(pageCount - 1, page + 1))} disabled={datePage >= pageCount - 1}>Next dates<ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>}
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground"><span><Radio className="mr-1 inline h-3.5 w-3.5 text-emerald-400" />Showing {dailyMetrics.length} logged day{dailyMetrics.length === 1 ? "" : "s"} for {monthLabels[month]} {year}</span><span>{latest ? `Latest device update ${format(new Date(latest.recorded_at), "dd MMM yyyy, HH:mm:ss")}` : "No latest device update"}</span></div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground"><span><Radio className="mr-1 inline h-3.5 w-3.5 text-emerald-400" />Showing all {dailyMetrics.length} dates for {monthLabels[month]} {year}</span><span>{latest ? `Latest device update ${format(new Date(latest.recorded_at), "dd MMM yyyy, HH:mm:ss")}` : "No latest device update"}</span></div>
     </div>
   );
 }
@@ -258,13 +262,13 @@ function MetricCard({ label, value, helper, icon }: { label: string; value: stri
 
 function MileageRow({ day, driverName, vehicleName }: { day: DailyMetric; driverName: string | null; vehicleName: string }) {
   const latest = day.latest;
-  const status = isMoving(latest) ? "Moving" : latest.ignition ? "Idling" : "Stopped";
+  const status = latest ? (isMoving(latest) ? "Moving" : latest.ignition ? "Idling" : "Stopped") : "No records";
   return <div className="grid gap-5 px-5 py-5 xl:min-w-[1080px] xl:grid-cols-[260px_210px_160px_170px_190px_180px] xl:items-center">
-    <div className="flex items-center gap-3"><div className="flex h-16 w-14 flex-col items-center justify-center rounded-xl border border-border bg-background/60"><span className="text-xs font-medium text-muted-foreground">{formatDateLabel(day.date)}</span><span className="text-2xl font-semibold">{day.date.slice(8, 10)}</span></div><div><div className="font-medium">{format(new Date(`${day.date}T12:00:00`), "MMM d, yyyy")}</div><Badge variant="outline" className={cn("mt-1 rounded-full", status === "Moving" ? "border-emerald-500/30 text-emerald-300" : "border-border text-muted-foreground")}>{status}</Badge></div></div>
+    <div className="flex items-center gap-3"><div className="flex h-16 w-14 flex-col items-center justify-center rounded-xl border border-border bg-background/60"><span className="text-xs font-medium text-muted-foreground">{formatDateLabel(day.date)}</span><span className="text-2xl font-semibold">{day.date.slice(8, 10)}</span></div><div><div className="font-medium">{format(new Date(`${day.date}T12:00:00`), "MMM d, yyyy")}</div><Badge variant="outline" className={cn("mt-1 rounded-full", status === "Moving" ? "border-emerald-500/30 text-emerald-300" : status === "No records" ? "border-amber-500/30 text-amber-300" : "border-border text-muted-foreground")}>{status}</Badge></div></div>
     <div><div className="text-3xl font-semibold tracking-tight">{day.distance.toFixed(1)} <span className="text-base font-normal text-muted-foreground">km</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, day.distance / 2)}%` }} /></div></div>
-    <div><div className="inline-flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xl font-semibold text-amber-300"><Activity className="h-4 w-4" />{day.stops}</div><div className="mt-2 text-xs text-muted-foreground">Detected stop transitions</div></div>
+    <div><div className="inline-flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xl font-semibold text-amber-300"><Activity className="h-4 w-4" />{day.stops}</div><div className="mt-2 text-xs text-muted-foreground">{latest ? "Detected stop transitions" : "No telemetry records"}</div></div>
     <div><BatteryBars values={day.battery} /><div className="text-xs text-muted-foreground">Min {formatVoltage(day.battery.length ? Math.min(...day.battery) : null)} · Latest {formatVoltage(day.battery.length ? day.battery[day.battery.length - 1] : null)}</div></div>
-    <div><div className="font-semibold">{format(new Date(latest.recorded_at), "HH:mm:ss")}</div><div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5" />{latest.speed !== null ? `${Math.round(latest.speed)} km/h` : "Speed unavailable"}</div><div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">{latest.satellites !== null ? `${latest.satellites} satellites` : "GPS status unavailable"}</div></div>
-    <div><div className="flex items-center gap-2 font-semibold"><UserRound className="h-4 w-4 text-primary" />{driverName ?? "Unassigned"}</div><div className="mt-1 text-xs text-muted-foreground">{vehicleName}</div><div className="mt-2 flex items-center gap-1 text-xs text-emerald-300"><WifiOff className="h-3.5 w-3.5" />Telemetry synced</div></div>
+    <div><div className="font-semibold">{latest ? format(new Date(latest.recorded_at), "HH:mm:ss") : "No records"}</div><div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5" />{latest?.speed !== null && latest?.speed !== undefined ? `${Math.round(latest.speed)} km/h` : "Speed unavailable"}</div><div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">{latest?.satellites !== null && latest?.satellites !== undefined ? `${latest.satellites} satellites` : "GPS status unavailable"}</div></div>
+    <div><div className="flex items-center gap-2 font-semibold"><UserRound className="h-4 w-4 text-primary" />{driverName ?? "Unassigned"}</div><div className="mt-1 text-xs text-muted-foreground">{vehicleName}</div><div className="mt-2 flex items-center gap-1 text-xs text-emerald-300"><WifiOff className="h-3.5 w-3.5" />{latest ? "Telemetry synced" : "Awaiting telemetry"}</div></div>
   </div>;
 }
