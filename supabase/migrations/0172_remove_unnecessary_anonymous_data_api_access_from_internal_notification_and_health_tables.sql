@@ -1,0 +1,1 @@
+REVOKE ALL PRIVILEGES ON TABLE public.asset_alert_deliveries, public.asset_movement_email_deliveries, public.pipeline_health FROM anon;
