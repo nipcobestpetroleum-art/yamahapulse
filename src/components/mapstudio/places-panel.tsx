@@ -5,12 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PlaceAutocomplete } from "@/components/mapstudio/place-autocomplete";
 import type { StudioOverlays, StudioTab } from "@/components/mapstudio/types";
-import {
-  gmapsInvoke,
-  type GeocodeResponse,
-  type PlaceDetails,
-  type PlacePrediction,
-} from "@/lib/google-maps";
+import { panelForwardGeocode, panelPlaceDetails, panelReverseGeocode, type PanelGeocodeResponse, type PanelPlace, type PanelPrediction } from "@/lib/mapbox-panel";
 
 interface PlacesPanelProps {
   setOverlays: (tab: StudioTab, overlays: StudioOverlays) => void;
@@ -19,26 +14,26 @@ interface PlacesPanelProps {
 }
 
 export function PlacesPanel({ setOverlays, requestView, lastMapClick }: PlacesPanelProps) {
-  const [place, setPlace] = useState<PlaceDetails | null>(null);
+  const [place, setPlace] = useState<PanelPlace | null>(null);
   const [placeBusy, setPlaceBusy] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
   const [geocodeQuery, setGeocodeQuery] = useState("");
   const [geocodeBusy, setGeocodeBusy] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
-  const [geocodeResults, setGeocodeResults] = useState<GeocodeResponse["results"]>([]);
+  const [geocodeResults, setGeocodeResults] = useState<PanelGeocodeResponse["results"]>([]);
 
   const [reverseBusy, setReverseBusy] = useState(false);
   const [reverseError, setReverseError] = useState<string | null>(null);
   const [reverseAddress, setReverseAddress] = useState<string | null>(null);
   const [reversePoint, setReversePoint] = useState<{ lat: number; lng: number } | null>(null);
 
-  const pickPlace = async (prediction: PlacePrediction) => {
+  const pickPlace = async (prediction: PanelPrediction) => {
     setPlaceBusy(true);
     setPlaceError(null);
     setPlace(null);
     try {
-      const details = await gmapsInvoke<PlaceDetails>("place-details", { placeId: prediction.placeId });
+      const details = await panelPlaceDetails(prediction.placeId);
       setPlace(details);
       if (details.location) {
         setOverlays("places", {
@@ -70,7 +65,7 @@ export function PlacesPanel({ setOverlays, requestView, lastMapClick }: PlacesPa
     setGeocodeBusy(true);
     setGeocodeError(null);
     try {
-      const data = await gmapsInvoke<GeocodeResponse>("geocode", { address });
+      const data = await panelForwardGeocode(address);
       if (data.status !== "OK" || !data.results || data.results.length === 0) {
         setGeocodeError(data.error_message ?? `Geocoder returned ${data.status}`);
         setGeocodeResults([]);
@@ -90,7 +85,7 @@ export function PlacesPanel({ setOverlays, requestView, lastMapClick }: PlacesPa
     setReverseBusy(true);
     setReverseError(null);
     try {
-      const data = await gmapsInvoke<GeocodeResponse>("reverse-geocode", { location: lastMapClick });
+      const data = await panelReverseGeocode(lastMapClick);
       if (data.status !== "OK" || !data.results || data.results.length === 0) {
         setReverseError(data.error_message ?? `Geocoder returned ${data.status}`);
         setReverseAddress(null);

@@ -7,8 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useLivePositions } from "@/hooks/use-live-positions";
-import { fetchBrowserMapKey } from "@/lib/google-maps";
-import { GoogleMapCanvas } from "@/components/mapstudio/google-map-canvas";
+import { getMapboxPublicToken } from "@/lib/mapbox";
+import { MapboxMapCanvas } from "@/components/mapstudio/mapbox-map-canvas";
 import { FleetPanel } from "@/components/mapstudio/fleet-panel";
 import { PlacesPanel } from "@/components/mapstudio/places-panel";
 import { RoutingPanel } from "@/components/mapstudio/routing-panel";
@@ -31,7 +31,7 @@ export default function MapStudioPage() {
   const orgId = currentOrg?.id ?? null;
 
   const [keyStatus, setKeyStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
-  const [browserKey, setBrowserKey] = useState<string | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<StudioTab>("fleet");
@@ -54,13 +54,13 @@ export default function MapStudioPage() {
   const { positionsByDeviceId } = useLivePositions(orgId);
 
   useEffect(() => {
-    fetchBrowserMapKey()
+    getMapboxPublicToken()
       .then((key) => {
-        setBrowserKey(key);
+        setMapboxToken(key);
         setKeyStatus("ready");
       })
       .catch((error: unknown) => {
-        setKeyError(error instanceof Error ? error.message : "Google Maps API key is unavailable");
+        setKeyError(error instanceof Error ? error.message : "Mapbox public token is unavailable");
         setKeyStatus("missing");
       });
   }, []);
@@ -136,7 +136,7 @@ export default function MapStudioPage() {
   const statusBadge =
     keyStatus === "ready" ? (
       <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
-        <Satellite className="mr-2 h-4 w-4" /> Google Maps connected
+        <Satellite className="mr-2 h-4 w-4" /> Mapbox connected
       </Badge>
     ) : keyStatus === "loading" ? (
       <Badge variant="outline" className="border-border bg-card/40">
@@ -152,31 +152,31 @@ export default function MapStudioPage() {
     <div className="space-y-4">
       <PageHeader
         title="Map Studio"
-        description="The full Google Maps Platform toolbox — live fleet, places, routing, roads, environment data, static imagery and raw tiles."
+        description="Mapbox-powered fleet operations, search, routing, map matching, isochrones, static imagery and spatial data tools."
         actions={statusBadge}
       />
 
       {keyStatus !== "ready" && (
         <Card className="border-amber-500/25 bg-amber-500/5">
           <CardContent className="space-y-2 p-4 text-sm">
-            <div className="font-semibold text-amber-400">{keyError ?? "Set up Google Maps in two steps"}</div>
+            <div className="font-semibold text-amber-400">{keyError ?? "Set up Mapbox in two steps"}</div>
             <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
               <li>
-                In Google Cloud Console, enable these APIs on your project: <span className="font-mono text-xs">Maps JavaScript API, Maps Static API, Map Tiles API, Street View Static API, Routes API, Route Optimization API, Roads API, Places API, Geocoding API, Geolocation API, Weather API, Air Quality API, Pollen API, Solar API</span>.
+                Create a Mapbox public token beginning with <span className="font-mono text-xs">pk.</span> in Mapbox Account → Access tokens.
               </li>
               <li>
-                Create an API key and add it as the <span className="font-mono text-xs">GOOGLE_MAPS_API_KEY</span> secret: Supabase Console → Project → Edge Functions → Manage Secrets.
+                Add the public token as <span className="font-mono text-xs">MAPBOX_PUBLIC_TOKEN</span> and your rotated secret token as <span className="font-mono text-xs">MAPBOX_SECRET_TOKEN</span> in Supabase → Edge Functions → Manage Secrets.
               </li>
             </ol>
             <p className="text-xs text-muted-foreground">
-              Panels that call Google server-side (routes, roads, weather, tiles…) start working immediately after the secret is saved. The interactive map also needs the Maps JavaScript API enabled on that key.
+              The public token is used only by Mapbox GL JS in the browser. Search, routing, map matching, optimization, isochrones, static images, and tile queries run through the authenticated server-side proxy.
             </p>
           </CardContent>
         </Card>
       )}
 
-      <GoogleMapCanvas
-        apiKey={keyStatus === "ready" ? browserKey : null}
+      <MapboxMapCanvas
+        token={keyStatus === "ready" ? mapboxToken : null}
         markers={activeOverlays.markers}
         polylines={activeOverlays.polylines}
         selectedMarkerId={selectedMarkerId}

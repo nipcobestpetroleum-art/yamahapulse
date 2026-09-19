@@ -7,12 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import type { StudioVehicle } from "@/components/mapstudio/types";
-import {
-  gmapsInvoke,
-  latToTileY,
-  lngToTileX,
-  type ImageResponse,
-} from "@/lib/google-maps";
+import { panelStaticImage } from "@/lib/mapbox-panel";
 
 interface StaticMapsPanelProps {
   mapView: { lat: number; lng: number; zoom: number } | null;
@@ -65,13 +60,15 @@ export function StaticMapsPanel({ mapView, lastMapClick, vehicles }: StaticMapsP
     setStaticBusy(true);
     setStaticError(null);
     try {
-      const data = await gmapsInvoke<ImageResponse>("static-map", {
-        center: { latitude: center.lat, longitude: center.lng },
+      const overlay = fleetMarkers.map((marker) => `pin-s+${marker.color.replace("0x", "").slice(0, 6)}(${marker.longitude},${marker.latitude})`).join(",");
+      const data = await panelStaticImage({
+        longitude: center.lng,
+        latitude: center.lat,
         zoom,
         width: 620,
         height: 380,
-        mapType: staticMapType,
-        markers: fleetMarkers,
+        style: `mapbox/${staticMapType === "satellite" ? "satellite-v9" : staticMapType === "terrain" ? "outdoors-v12" : "streets-v12"}`,
+        overlay,
       });
       setStaticUrl(data.dataUrl);
     } catch (caught) {
@@ -82,53 +79,18 @@ export function StaticMapsPanel({ mapView, lastMapClick, vehicles }: StaticMapsP
   };
 
   const generateStreet = async () => {
-    if (!center) return;
     setStreetBusy(true);
-    setStreetError(null);
-    try {
-      const data = await gmapsInvoke<ImageResponse>("streetview", {
-        location: { latitude: center.lat, longitude: center.lng },
-        width: 620,
-        height: 340,
-        heading,
-        fov,
-      });
-      setStreetUrl(data.dataUrl);
-    } catch (caught) {
-      setStreetError(caught instanceof Error ? caught.message : "Street View failed");
-    } finally {
-      setStreetBusy(false);
-    }
+    setStreetError("Mapbox does not provide a Street View Static equivalent. Use Mapbox satellite imagery or a separate imagery provider.");
+    setStreetUrl(null);
+    setStreetBusy(false);
   };
 
   const generateTiles = async () => {
-    if (!center) return;
     setTileBusy(true);
-    setTileError(null);
-    const x = lngToTileX(center.lng, tileZoom);
-    const y = latToTileY(center.lat, tileZoom);
-    setTileCoord({ x, y });
-    try {
-      const grid: string[][] = [];
-      for (let dx = 0; dx < 2; dx += 1) {
-        const row: string[] = [];
-        for (let dy = 0; dy < 2; dy += 1) {
-          const data = await gmapsInvoke<ImageResponse>("tile", {
-            mapType: tileType,
-            zoom: tileZoom,
-            x: x + dx,
-            y: y + dy,
-          });
-          row.push(data.dataUrl);
-        }
-        grid.push(row);
-      }
-      setTileUrls(grid);
-    } catch (caught) {
-      setTileError(caught instanceof Error ? caught.message : "Map tiles failed");
-    } finally {
-      setTileBusy(false);
-    }
+    setTileError("Mapbox GL JS already renders Mapbox vector tiles through the live map. Raw tile fetching is intentionally not exposed from the browser.");
+    setTileUrls(null);
+    setTileCoord(null);
+    setTileBusy(false);
   };
 
   return (

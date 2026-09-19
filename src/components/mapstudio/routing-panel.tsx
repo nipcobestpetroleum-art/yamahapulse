@@ -10,18 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PlaceAutocomplete } from "@/components/mapstudio/place-autocomplete";
 import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
-import {
-  decodePolyline,
-  formatDurationSeconds,
-  formatKm,
-  gmapsInvoke,
-  parseDurationSeconds,
-  type ComputeRoutesResponse,
-  type MatrixElement,
-  type OptimizeToursResponse,
-  type PlaceDetails,
-  type PlacePrediction,
-} from "@/lib/google-maps";
+import { formatMapboxDistance, formatMapboxDuration } from "@/lib/mapbox";
+import { panelDirections, panelMatrix, panelPlaceDetails, type PanelPrediction } from "@/lib/mapbox-panel";
 
 interface SelectedPoint {
   lat: number;
@@ -37,6 +27,13 @@ interface RouteResult {
   engineLabel: string;
 }
 
+interface MatrixPanelElement {
+  originIndex?: number;
+  destinationIndex?: number;
+  duration?: string;
+  distanceMeters?: number;
+}
+
 interface RoutingPanelProps {
   vehicles: StudioVehicle[];
   selectedDeviceId: string | null;
@@ -44,8 +41,8 @@ interface RoutingPanelProps {
   fitOverlays: () => void;
 }
 
-async function resolvePrediction(prediction: PlacePrediction): Promise<SelectedPoint> {
-  const details = await gmapsInvoke<PlaceDetails>("place-details", { placeId: prediction.placeId });
+async function resolvePrediction(prediction: PanelPrediction): Promise<SelectedPoint> {
+  const details = await panelPlaceDetails(prediction.placeId);
   if (!details.location) throw new Error("Place has no location");
   return { lat: details.location.latitude, lng: details.location.longitude, label: prediction.primaryText || details.displayName?.text || "Place" };
 }
@@ -55,7 +52,7 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
   const [destination, setDestination] = useState<SelectedPoint | null>(null);
   const [stops, setStops] = useState<SelectedPoint[]>([]);
   const [engine, setEngine] = useState<"routes" | "optimization">("routes");
-  const [projectNumber, setProjectNumber] = useState(() => localStorage.getItem("yamahapulse.gmaps.projectNumber") ?? "");
+  const [projectNumber, setProjectNumber] = useState(() => localStorage.getItem("yamahapulse.mapbox.optimization") ?? "");
   const [traffic, setTraffic] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +61,7 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
 
   const [matrixBusy, setMatrixBusy] = useState(false);
   const [matrixError, setMatrixError] = useState<string | null>(null);
-  const [matrix, setMatrix] = useState<MatrixElement[] | null>(null);
+  const [matrix, setMatrix] = useState<MatrixPanelElement[] | null>(null);
   const [matrixLabels, setMatrixLabels] = useState<string[]>([]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.deviceId === selectedDeviceId) ?? null;
@@ -76,8 +73,8 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
       ? { lat: selectedVehicle.position.latitude, lng: selectedVehicle.position.longitude, label: selectedVehicle.vehicleName }
       : null;
 
-  const drawRoute = (from: SelectedPoint, routeStops: SelectedPoint[], to: SelectedPoint, encoded: string) => {
-    const decoded = decodePolyline(encoded).map((point) => [point.lat, point.lng] as [number, number]);
+  const drawRoute = (from: SelectedPoint, routeStops: SelectedPoint[], to: SelectedPoint, coordinates: [number, number][]) => {
+    const decoded = coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
     setOverlays("routing", {
       markers: [
         { id: "route:origin", lat: from.lat, lng: from.lng, title: "Origin", color: "#10b981", scale: 9, snippet: [from.label] },
@@ -110,47 +107,27 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
       let engineLabel = "Routes API";
 
       if (engine === "optimization" && stops.length >= 2) {
-        const trimmed = projectNumber.trim();
-        if (!/^\d{6,32}$/.test(trimmed)) {
-          throw new Error("Enter your Google Cloud project number (digits only) to use the Route Optimization API.");
-        }
-        localStorage.setItem("yamahapulse.gmaps.projectNumber", trimmed);
-        engineLabel = "Route Optimization API";
-        const tours = await gmapsInvoke<OptimizeToursResponse>("optimize-tours", {
-          projectNumber: trimmed,
-          depot: { latitude: origin.lat, longitude: origin.lng },
-          stops: stops.map((stop) => ({ latitude: stop.lat, longitude: stop.lng })),
-        });
-        const order = (tours.tours?.[0]?.visits ?? [])
-          .map((visit) => visit.shipmentIndex)
-          .filter((index): index is number => index != null);
-        if (order.length > 0) {
-          orderedStops = order.map((index) => stops[index]).filter(Boolean);
-          setOptimizedOrder(order);
-        }
+        engineLabel = "Mapbox Optimization API";
+        setError("Mapbox Optimization API submissions require a routing problem and asynchronous job polling. The route is computed with Directions API for now.");
       }
 
-      const data = await gmapsInvoke<ComputeRoutesResponse>("compute-routes", {
-        origin: { latitude: origin.lat, longitude: origin.lng },
-        destination: { latitude: destination.lat, longitude: destination.lng },
-        waypoints: orderedStops.map((stop) => ({ latitude: stop.lat, longitude: stop.lng })),
-        traffic,
-        optimize: engine === "routes" && stops.length > 1,
-      });
-      if (engine === "routes" && stops.length > 1) engineLabel = "Routes API (waypoint optimization)";
-
+      const data = await panelDirections([
+        { latitude: origin.lat, longitude: origin.lng },
+        ...orderedStops.map((stop) => ({ latitude: stop.lat, longitude: stop.lng })),
+        { latitude: destination.lat, longitude: destination.lng },
+      ], traffic);
       const route = data.routes?.[0];
-      if (!route?.polyline?.encodedPolyline) throw new Error("No route found for these points");
+      if (!route) throw new Error("No route found for these points");
 
       setResult({
-        distanceMeters: route.distanceMeters,
-        durationSeconds: parseDurationSeconds(route.duration),
-        legs: (route.legs ?? []).map((leg) => ({ distanceMeters: leg.distanceMeters, durationSeconds: parseDurationSeconds(leg.duration) })),
-        waypointOrder: route.waypointOrder ?? [],
+        distanceMeters: route.distance,
+        durationSeconds: route.duration,
+        legs: (route.legs ?? []).map((leg) => ({ distanceMeters: leg.distance, durationSeconds: leg.duration })),
+        waypointOrder: [],
         engineLabel,
       });
 
-      drawRoute(origin, orderedStops, destination, route.polyline.encodedPolyline);
+      drawRoute(origin, orderedStops, destination, route.geometry.coordinates);
       fitOverlays();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Routing failed");
@@ -182,10 +159,16 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
     setMatrixBusy(true);
     setMatrixError(null);
     try {
-      const elements = await gmapsInvoke<MatrixElement[]>("route-matrix", {
-        origins: withFix.map((vehicle) => ({ latitude: vehicle.position!.latitude, longitude: vehicle.position!.longitude })),
-        destinations: [{ latitude: destination.lat, longitude: destination.lng }],
-      });
+      const data = await panelMatrix([
+        ...withFix.map((vehicle) => ({ latitude: vehicle.position!.latitude, longitude: vehicle.position!.longitude })),
+        { latitude: destination.lat, longitude: destination.lng }
+      ]);
+      const elements = (data.durations ?? []).map((durations, index) => ({
+        originIndex: index,
+        destinationIndex: 0,
+        duration: durations[withFix.length] == null ? undefined : `${durations[withFix.length]}s`,
+        distanceMeters: data.distances && data.distances[index] ? data.distances[index]![withFix.length] ?? undefined : undefined,
+      }));
       setMatrix(elements);
       setMatrixLabels(withFix.map((vehicle) => vehicle.vehicleName));
     } catch (caught) {
@@ -325,10 +308,10 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
                   <GitBranch className="mr-1.5 h-3.5 w-3.5" /> {result.engineLabel}
                 </Badge>
                 <div className="flex items-center gap-1.5 text-sm font-semibold">
-                  <RouteIcon className="h-4 w-4 text-primary" /> {formatKm(result.distanceMeters)}
+                  <RouteIcon className="h-4 w-4 text-primary" /> {formatMapboxDistance(result.distanceMeters)}
                 </div>
                 <div className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Timer className="h-4 w-4 text-primary" /> {formatDurationSeconds(result.durationSeconds)}
+                  <Timer className="h-4 w-4 text-primary" /> {formatMapboxDuration(result.durationSeconds)}
                 </div>
                 <span className="text-xs text-muted-foreground">{result.legs.length} leg{result.legs.length === 1 ? "" : "s"}</span>
               </div>
@@ -359,8 +342,8 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
                       {result.legs.map((leg, index) => (
                         <TableRow key={index}>
                           <TableCell className="text-xs">{index === 0 ? "Start" : `Stop ${index}`} → {index === result.legs.length - 1 ? "Destination" : `Stop ${index + 1}`}</TableCell>
-                          <TableCell className="text-xs">{formatKm(leg.distanceMeters)}</TableCell>
-                          <TableCell className="text-xs">{formatDurationSeconds(leg.durationSeconds)}</TableCell>
+                          <TableCell className="text-xs">{formatMapboxDistance(leg.distanceMeters)}</TableCell>
+                          <TableCell className="text-xs">{formatMapboxDuration(leg.durationSeconds)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -396,8 +379,8 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
                   {matrix.map((element, index) => (
                     <TableRow key={index}>
                       <TableCell className="text-xs font-medium">{matrixLabels[element.originIndex ?? index] ?? `Origin ${element.originIndex ?? index}`}</TableCell>
-                      <TableCell className="text-xs">{formatKm(element.distanceMeters)}</TableCell>
-                      <TableCell className="text-xs">{formatDurationSeconds(parseDurationSeconds(element.duration))}</TableCell>
+                      <TableCell className="text-xs">{formatMapboxDistance(element.distanceMeters)}</TableCell>
+                      <TableCell className="text-xs">{formatMapboxDuration(element.duration ? Number.parseFloat(element.duration) : undefined)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -112,7 +112,7 @@ export function FleetPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
     <div className="space-y-4">
       <Card className="border-border bg-card/60">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="text-sm font-semibold">Fleet on Google Maps</CardTitle>
+          <CardTitle className="text-sm font-semibold">Fleet on Mapbox</CardTitle>
           <div className="flex gap-2">
             <Button
               variant="outline"

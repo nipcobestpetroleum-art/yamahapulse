@@ -7,7 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
-import { gmapsInvoke, type SnapToRoadsResponse, type SnappedPoint } from "@/lib/google-maps";
+import { panelMatching } from "@/lib/mapbox-panel";
+type SnappedPoint = { location: { latitude: number; longitude: number }; placeId?: string };
+
 
 interface RoadsPanelProps {
   vehicles: StudioVehicle[];
@@ -74,9 +76,9 @@ export function RoadsPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
     setNearest(null);
     try {
       const points = await collectPoints();
-      const data = await gmapsInvoke<SnapToRoadsResponse>("snap-to-roads", { points, interpolate: true });
-      const snappedPoints = data.snappedPoints ?? [];
-      if (snappedPoints.length === 0) throw new Error("Google could not match these points to a road.");
+      const data = await panelMatching(points);
+      const snappedPoints: SnappedPoint[] = (data.tracepoints ?? []).filter(Boolean).map((point) => ({ location: { latitude: point!.location[1], longitude: point!.location[0] }, placeId: point!.name }));
+      if (snappedPoints.length === 0) throw new Error("Mapbox could not match these points to a road.");
       setSnapped(snappedPoints);
       setSourceCount(points.length);
 
@@ -105,10 +107,13 @@ export function RoadsPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
     setNearestBusy(true);
     setNearestError(null);
     try {
-      const data = await gmapsInvoke<SnapToRoadsResponse>("nearest-roads", {
-        points: [{ latitude: lastMapClick.lat, longitude: lastMapClick.lng }],
-      });
-      setNearest(data.snappedPoints ?? []);
+      const delta = 0.0001;
+      const data = await panelMatching([
+        { latitude: lastMapClick.lat - delta, longitude: lastMapClick.lng - delta },
+        { latitude: lastMapClick.lat, longitude: lastMapClick.lng },
+        { latitude: lastMapClick.lat + delta, longitude: lastMapClick.lng + delta },
+      ]);
+      setNearest((data.tracepoints ?? []).filter(Boolean).map((point) => ({ location: { latitude: point!.location[1], longitude: point!.location[0] }, placeId: point!.name })));
     } catch (caught) {
       setNearestError(caught instanceof Error ? caught.message : "Nearest-roads failed");
     } finally {

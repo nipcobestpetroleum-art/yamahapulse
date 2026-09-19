@@ -2,21 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
-import {
-  gmapsInvoke,
-  type AutocompleteResponse,
-  type PlacePrediction,
-} from "@/lib/google-maps";
+import { panelAutocomplete, type PanelPrediction } from "@/lib/mapbox-panel";
 
 interface PlaceAutocompleteProps {
   placeholder: string;
-  onPick: (prediction: PlacePrediction) => void;
+  onPick: (prediction: PanelPrediction) => void;
   clearOnPick?: boolean;
 }
 
 export function PlaceAutocomplete({ placeholder, onPick, clearOnPick = true }: PlaceAutocompleteProps) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
+  const [suggestions, setSuggestions] = useState<PanelPrediction[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,20 +29,10 @@ export function PlaceAutocomplete({ placeholder, onPick, clearOnPick = true }: P
     let cancelled = false;
     setLoading(true);
     setError(null);
-    gmapsInvoke<AutocompleteResponse>("places-autocomplete", { input: trimmed })
-      .then((data) => {
+    panelAutocomplete(trimmed)
+      .then((predictions) => {
         if (cancelled) return;
-        setSuggestions(
-          (data.suggestions ?? [])
-            .map((suggestion) => suggestion.placePrediction)
-            .filter((prediction): prediction is NonNullable<typeof prediction> => Boolean(prediction))
-            .map((prediction) => ({
-              placeId: prediction.placeId,
-              primaryText: prediction.structuredFormat?.mainText?.text ?? prediction.text?.text ?? "",
-              secondaryText: prediction.structuredFormat?.secondaryText?.text ?? "",
-              fullText: prediction.text?.text ?? "",
-            })),
-        );
+        setSuggestions(predictions);
         setOpen(true);
       })
       .catch((err: unknown) => {
