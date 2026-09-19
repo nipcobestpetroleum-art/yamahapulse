@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { VehicleStatusBadge } from "@/components/status-badge";
 import { CriticalEventsWidget } from "@/components/dashboard/critical-events-widget";
+import { DashboardMapbox } from "@/components/dashboard/dashboard-mapbox";
 import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-icon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -261,7 +262,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         </div>
         {assignmentError && <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">Unable to load tracker assignments: {assignmentError}</div>}
         {assignments !== null && counts.total > 0 && counts.online === 0 && <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No trackers are reporting fresh GPS data right now. Any markers below are last-known locations and include their GPS timestamp.</div>}
-        {assignments !== null && <FleetOperationsMap assets={assets} />}
+        {assignments !== null && <DashboardMapbox assets={assets} />}
         {assignments === null ? (
           <Skeleton className="h-16 rounded-xl" />
         ) : assets.length === 0 ? (

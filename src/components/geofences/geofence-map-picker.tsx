@@ -1,43 +1,22 @@
-import { useMemo } from "react";
-import { Circle, MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
-import L, { type LatLngExpression } from "leaflet";
+import { useMemo, useState } from "react";
+import { PlatformMap } from "@/components/maps/platform-map";
+import type { MapMarkerSpec, MapPolylineSpec } from "@/components/mapstudio/types";
 
-interface Props {
-  center: [number, number];
-  radius: number;
-  onChange: (center: [number, number]) => void;
-}
+interface Props { center: [number, number]; radius: number; onChange: (center: [number, number]) => void; }
 
-const pinIcon = L.divIcon({
-  className: "geofence-pin",
-  html: `<div style="width:16px;height:16px;border-radius:9999px;background:#3B82F6;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`,
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-});
-
-function ClickHandler({ onChange }: { onChange: (center: [number, number]) => void }) {
-  useMapEvents({
-    click(e) {
-      onChange([e.latlng.lat, e.latlng.lng]);
-    },
+function circlePoints([lat, lng]: [number, number], radius: number): [number, number][] {
+  const earth = 111_320;
+  const latRadius = radius / earth;
+  const lngRadius = radius / (earth * Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: 65 }, (_, index) => {
+    const angle = (index / 64) * Math.PI * 2;
+    return [lat + Math.sin(angle) * latRadius, lng + Math.cos(angle) * lngRadius];
   });
-  return null;
 }
 
 export function GeofenceMapPicker({ center, radius, onChange }: Props) {
-  const position = useMemo<LatLngExpression>(() => center, [center]);
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <MapContainer center={position} zoom={13} className="h-[280px] w-full" scrollWheelZoom>
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
-        <ClickHandler onChange={onChange} />
-        <Marker position={position} icon={pinIcon} />
-        <Circle center={position} radius={radius} pathOptions={{ color: "#3B82F6", fillOpacity: 0.15 }} />
-      </MapContainer>
-    </div>
-  );
+  const [nonce, setNonce] = useState(0);
+  const markers = useMemo<MapMarkerSpec[]>(() => [{ id: "geofence:center", lat: center[0], lng: center[1], title: "Geofence center", color: "#3B82F6", scale: 8 }], [center]);
+  const polylines = useMemo<MapPolylineSpec[]>(() => [{ id: "geofence:radius", points: circlePoints(center, radius), color: "#3B82F6", weight: 3, opacity: 0.8 }], [center, radius]);
+  return <div className="overflow-hidden rounded-lg border border-border"><PlatformMap markers={markers} polylines={polylines} heightClass="h-[280px] w-full" fitNonce={nonce} onMapClick={(lat, lng) => { onChange([lat, lng]); setNonce((value) => value + 1); }} /></div>;
 }

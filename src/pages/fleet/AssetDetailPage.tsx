@@ -5,6 +5,7 @@ import L, { type LatLngExpression } from "leaflet";
 import { ArrowLeft, Battery, Car, Gauge, Loader2, LockKeyhole, Radio, Route, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { PageHeader } from "@/components/page-header";
+import { AssetRouteMapbox } from "@/components/vehicles/asset-route-mapbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,7 +192,7 @@ export default function AssetDetailPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,.8fr)]">
         <Card className="overflow-hidden border-border bg-card/40">
           <CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-emerald-400" />Today’s route · {route.length} valid points</CardTitle></CardHeader>
-          <CardContent className="p-0"><div className="h-[500px] overflow-hidden border-t border-border"><MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' /><FitRoute positions={route} />{routePoints.length > 1 && <Polyline positions={routePoints} pathOptions={{ color: "#34d399", weight: 5, opacity: .9 }} />}{startPosition && <Marker position={[startPosition.latitude, startPosition.longitude]} icon={routeStartIcon} />}{route.length > 1 && endPosition && <Marker position={[endPosition.latitude, endPosition.longitude]} icon={routeEndIcon} />}{currentPosition && <Marker position={[currentPosition.latitude, currentPosition.longitude]} icon={currentIcon} />}</MapContainer></div></CardContent>
+          <CardContent className="p-0"><div className="h-[500px] overflow-hidden border-t border-border"><AssetRouteMapbox route={route} currentPosition={currentPosition} /></div></CardContent>
         </Card>
 
         <div className="space-y-4">

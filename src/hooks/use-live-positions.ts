@@ -75,11 +75,12 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
         },
         (payload) => {
           const next = payload.new as Partial<LatestPosition> | null;
-          if (!next?.device_id) return;
-          setPositionsByDeviceId((prev) => ({
-            ...prev,
-            [next.device_id]: next as LatestPosition,
-          }));
+          if (!next?.device_id || !next.recorded_at) return;
+          setPositionsByDeviceId((prev) => {
+            const current = prev[next.device_id];
+            if (current && new Date(next.recorded_at!).getTime() <= new Date(current.recorded_at).getTime()) return prev;
+            return { ...prev, [next.device_id]: next as LatestPosition };
+          });
         },
       );
 
