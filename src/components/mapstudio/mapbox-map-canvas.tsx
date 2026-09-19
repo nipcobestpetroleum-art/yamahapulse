@@ -83,9 +83,9 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
       element.style.width = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
       element.style.height = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
       element.style.borderRadius = isBike ? "14px" : "9999px";
-      element.style.background = isBike ? "#fff" : spec.color ?? "#6366f1";
-      element.style.border = spec.id === selectedMarkerId ? "3px solid white" : "2px solid white";
-      element.style.boxShadow = "0 2px 8px rgba(15,23,42,.35)";
+      element.style.background = isBike ? "transparent" : spec.color ?? "#6366f1";
+      element.style.border = isBike ? (spec.id === selectedMarkerId ? "3px solid white" : "0") : spec.id === selectedMarkerId ? "3px solid white" : "2px solid white";
+      element.style.boxShadow = isBike ? "none" : "0 2px 8px rgba(15,23,42,.35)";
       element.style.display = "flex";
       element.style.alignItems = "center";
       element.style.justifyContent = "center";
@@ -98,6 +98,7 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
         image.style.width = "100%";
         image.style.height = "100%";
         image.style.objectFit = "contain";
+        image.style.mixBlendMode = "multiply";
         image.style.transform = `rotate(${(spec.bearing ?? 90) - 90}deg)`;
         element.appendChild(image);
       }
