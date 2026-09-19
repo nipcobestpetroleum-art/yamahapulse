@@ -1,0 +1,1 @@
+ALTER TABLE public.wallet_accounts ENABLE ROW LEVEL SECURITY;

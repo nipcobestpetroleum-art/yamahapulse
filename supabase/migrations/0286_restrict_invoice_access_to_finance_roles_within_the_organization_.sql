@@ -1,0 +1,1 @@
+CREATE POLICY invoices_finance_access ON public.invoices FOR ALL TO authenticated USING (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT'])) WITH CHECK (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT']));

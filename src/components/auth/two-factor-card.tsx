@@ -135,9 +135,6 @@ export function TwoFactorCard() {
                 Scan with your authenticator app (Google Authenticator, 1Password, Authy…),
                 then enter the 6-digit code to confirm.
               </p>
-              <p className="rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-xs break-all">
-                {draft.secret}
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="mfa-code">Verification code</Label>

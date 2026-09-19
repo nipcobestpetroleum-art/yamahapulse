@@ -38,9 +38,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const ORG_STORAGE_KEY = "yamahapulse.currentOrg";
-const LOGIN_ORG_BY_EMAIL: Record<string, string> = {
-  "nnoromj12@gmail.com": "7dd21ab5-061e-46c4-ac0f-9a79c6961e69",
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -73,11 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setMemberships(list);
     setCurrentOrgId((prev) => {
-      const loginOrgId = LOGIN_ORG_BY_EMAIL[user.email?.toLowerCase() ?? ""];
-      if (loginOrgId && list.some((m) => m.organization.id === loginOrgId)) {
-        localStorage.setItem(ORG_STORAGE_KEY, loginOrgId);
-        return loginOrgId;
-      }
       if (prev && list.some((m) => m.organization.id === prev)) return prev;
       const next = list[0]?.organization.id ?? null;
       if (next) localStorage.setItem(ORG_STORAGE_KEY, next);
@@ -147,9 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setCurrentOrg = useCallback((organizationId: string) => {
+    if (!memberships.some((membership) => membership.organization.id === organizationId)) return;
     setCurrentOrgId(organizationId);
     localStorage.setItem(ORG_STORAGE_KEY, organizationId);
-  }, []);
+  }, [memberships]);
 
   const refreshMemberships = useCallback(async () => {
     const {

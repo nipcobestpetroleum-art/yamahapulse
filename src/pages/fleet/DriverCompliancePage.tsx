@@ -109,6 +109,11 @@ export default function DriverCompliancePage() {
   const uploadDocument = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!currentOrg || !selected || !canWrite || !documentFile) return;
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowedTypes.includes(documentFile.type) || documentFile.size > 10 * 1024 * 1024) {
+      showError("Upload a PDF, JPG, or PNG file up to 10 MB.");
+      return;
+    }
     setDocumentSaving(true);
     const safeName = documentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${currentOrg.id}/${selected.id}/${crypto.randomUUID()}-${safeName}`;

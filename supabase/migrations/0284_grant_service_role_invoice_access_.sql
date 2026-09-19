@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.invoices TO service_role;

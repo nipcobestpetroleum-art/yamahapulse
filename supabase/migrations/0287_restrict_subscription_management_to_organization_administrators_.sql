@@ -1,0 +1,1 @@
+CREATE POLICY subscriptions_admin_access ON public.subscriptions FOR ALL TO authenticated USING (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN'])) WITH CHECK (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN']));

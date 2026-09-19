@@ -1,0 +1,1 @@
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;

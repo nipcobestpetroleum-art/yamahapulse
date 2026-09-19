@@ -1,0 +1,1 @@
+CREATE POLICY wallet_accounts_finance_access ON public.wallet_accounts FOR ALL TO authenticated USING (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT'])) WITH CHECK (public.has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT']));
