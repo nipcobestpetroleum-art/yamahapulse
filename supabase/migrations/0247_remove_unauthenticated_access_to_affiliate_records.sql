@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.affiliates, public.affiliate_referrals, public.affiliate_commissions, public.affiliate_payouts FROM anon;

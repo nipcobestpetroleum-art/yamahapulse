@@ -1,0 +1,1 @@
+CREATE POLICY affiliate_payouts_write ON public.affiliate_payouts FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT'])) WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT']));

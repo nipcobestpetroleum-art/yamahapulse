@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.affiliates, public.affiliate_referrals, public.affiliate_commissions, public.affiliate_payouts TO authenticated;

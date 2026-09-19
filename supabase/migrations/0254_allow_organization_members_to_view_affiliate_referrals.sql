@@ -1,0 +1,1 @@
+CREATE POLICY affiliate_referrals_select ON public.affiliate_referrals FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

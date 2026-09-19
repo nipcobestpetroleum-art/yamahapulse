@@ -1,0 +1,1 @@
+ALTER TABLE public.affiliate_referrals ENABLE ROW LEVEL SECURITY;

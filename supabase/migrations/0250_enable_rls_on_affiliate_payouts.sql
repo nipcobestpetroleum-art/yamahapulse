@@ -1,0 +1,1 @@
+ALTER TABLE public.affiliate_payouts ENABLE ROW LEVEL SECURITY;

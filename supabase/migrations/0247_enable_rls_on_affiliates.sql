@@ -1,0 +1,1 @@
+ALTER TABLE public.affiliates ENABLE ROW LEVEL SECURITY;

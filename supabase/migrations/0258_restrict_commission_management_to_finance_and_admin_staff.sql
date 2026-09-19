@@ -1,0 +1,1 @@
+CREATE POLICY affiliate_commissions_write ON public.affiliate_commissions FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT','FLEET_MANAGER'])) WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','ACCOUNTANT','FLEET_MANAGER']));

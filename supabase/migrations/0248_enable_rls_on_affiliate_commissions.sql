@@ -1,0 +1,1 @@
+ALTER TABLE public.affiliate_commissions ENABLE ROW LEVEL SECURITY;
