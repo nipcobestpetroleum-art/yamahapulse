@@ -148,6 +148,12 @@ function parsePayload(url: URL, body: Record<string, unknown> | null) {
     batteryVoltageMv: toNumber(p("battery_voltage_mv")),
     batteryCurrentMa: toNumber(p("battery_current_ma")),
     externalVoltageMv: toNumber(p("external_voltage_mv")),
+    cellLatitude: parseCoordValue(p("cell_latitude") ?? p("cell_lat") ?? p("lbs_latitude") ?? p("lbs_lat")),
+    cellLongitude: parseCoordValue(p("cell_longitude") ?? p("cell_lon") ?? p("lbs_longitude") ?? p("lbs_lon")),
+    wifiLatitude: parseCoordValue(p("wifi_latitude") ?? p("wifi_lat")),
+    wifiLongitude: parseCoordValue(p("wifi_longitude") ?? p("wifi_lon")),
+    bluetoothLatitude: parseCoordValue(p("bluetooth_latitude") ?? p("ble_latitude") ?? p("bluetooth_lat") ?? p("ble_lat")),
+    bluetoothLongitude: parseCoordValue(p("bluetooth_longitude") ?? p("ble_longitude") ?? p("bluetooth_lon") ?? p("ble_lon")),
   };
 }
 
@@ -166,11 +172,14 @@ interface IngestResult {
 }
 
 /** Map a parsed ping to the flat record shape expected by the ingest RPCs. */
-function toIngestRecord(data: ReturnType<typeof parsePayload>, imei: string | null): Record<string, unknown> {
+function toIngestRecord(data: ReturnType<typeof parsePayload>, imei: string | null, location = chooseLocation(data)): Record<string, unknown> {
   const rec: Record<string, unknown> = {
     imei,
-    latitude: data.latitude,
-    longitude: data.longitude,
+    latitude: location?.latitude ?? data.latitude,
+    longitude: location?.longitude ?? data.longitude,
+    location_source: location?.source ?? "LAST_KNOWN",
+    location_confidence: location?.confidence ?? 0,
+    location_stale: Boolean((location as { stale?: boolean } | null)?.stale),
     speed_kmh: data.speed_kmh,
     course: data.course,
     altitude: data.altitude,
@@ -217,7 +226,47 @@ function recordToRpcArgs(rec: Record<string, unknown>): Record<string, unknown> 
 }
 
 function isValidCoords(lat: number | null, lon: number | null): boolean {
-  return lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+  return lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(lat === 0 && lon === 0);
+}
+
+function chooseLocation(data: ReturnType<typeof parsePayload>) {
+  const recent = !data.recorded_at || (Date.now() - new Date(data.recorded_at).getTime()) <= 10 * 60 * 1000;
+  if (recent && isValidCoords(data.latitude, data.longitude) && data.satellites !== 0) return { latitude: data.latitude, longitude: data.longitude, source: "GNSS", confidence: data.accuracy ?? (data.satellites && data.satellites >= 5 ? 0.95 : 0.8) };
+  if (isValidCoords(data.cellLatitude, data.cellLongitude)) return { latitude: data.cellLatitude, longitude: data.cellLongitude, source: "CELL", confidence: 0.35 };
+  if (isValidCoords(data.wifiLatitude, data.wifiLongitude)) return { latitude: data.wifiLatitude, longitude: data.wifiLongitude, source: "WIFI", confidence: 0.6 };
+  if (isValidCoords(data.bluetoothLatitude, data.bluetoothLongitude)) return { latitude: data.bluetoothLatitude, longitude: data.bluetoothLongitude, source: "BLUETOOTH", confidence: 0.75 };
+  return null;
+}
+
+async function persistLocationMetadata(supabase: ReturnType<typeof createClient>, deviceId: string, recordedAt: string, metadata: { source: string; confidence: number; stale: boolean }) {
+  const values = { location_source: metadata.source, location_confidence: metadata.confidence, location_stale: metadata.stale };
+  await Promise.all([
+    supabase.from("positions").update(values).eq("device_id", deviceId).eq("recorded_at", recordedAt),
+    supabase.from("latest_positions").update(values).eq("device_id", deviceId),
+  ]);
+}
+
+async function resolveLocation(data: ReturnType<typeof parsePayload>, supabase: ReturnType<typeof createClient>) {
+  const direct = chooseLocation(data);
+  if (direct) return { ...direct, stale: false };
+  if (!data.ident) return null;
+  const { data: device } = await supabase.from("gps_devices").select("id").eq("imei", data.ident).maybeSingle();
+  if (!device) return null;
+  const { data: previous } = await supabase.from("latest_positions").select("latitude,longitude,recorded_at,speed,course").eq("device_id", device.id).maybeSingle();
+  if (!previous || !isValidCoords(Number(previous.latitude), Number(previous.longitude))) return null;
+  const previousTime = new Date(previous.recorded_at).getTime();
+  const referenceTime = data.recorded_at ? new Date(data.recorded_at).getTime() : Date.now();
+  const elapsedHours = Math.max(0, (referenceTime - previousTime) / 3_600_000);
+  const speedKmh = Number(previous.speed);
+  const course = Number(previous.course);
+  if (Number.isFinite(speedKmh) && speedKmh > 1 && Number.isFinite(course) && elapsedHours > 0 && elapsedHours <= 0.25) {
+    const distanceKm = Math.min(speedKmh * elapsedHours, 5);
+    const bearing = course * Math.PI / 180;
+    const lat = Number(previous.latitude) + (distanceKm * Math.cos(bearing)) / 111.32;
+    const lon = Number(previous.longitude) + (distanceKm * Math.sin(bearing)) / (111.32 * Math.cos(Number(previous.latitude) * Math.PI / 180));
+    if (isValidCoords(lat, lon)) return { latitude: lat, longitude: lon, source: "ESTIMATED", confidence: 0.2, stale: false };
+  }
+  return { latitude: Number(previous.latitude), longitude: Number(previous.longitude), source: "LAST_KNOWN", confidence: 0.05, stale: true };
 }
 
 serve(async (req) => {
@@ -267,11 +316,12 @@ serve(async (req) => {
     const invalid: unknown[] = [];
     for (const raw of batchRecords) {
       const rec = parsePayload(url, { ...raw, imei });
-      if (!isValidCoords(rec.latitude, rec.longitude)) {
-        invalid.push({ error: "Missing or invalid coordinates" });
+      const location = await resolveLocation(rec, supabase);
+      if (!location) {
+        invalid.push({ error: "No usable location source or previous position" });
         continue;
       }
-      parsed.push(toIngestRecord(rec, imei));
+      parsed.push(toIngestRecord(rec, imei, location));
     }
     if (parsed.length === 0) {
       return corsResponse({ error: "No valid records in batch", results: invalid }, 400);
@@ -285,6 +335,15 @@ serve(async (req) => {
 
     const result = (rpcData ?? null) as { results?: IngestResult[] } | null;
     const results = result?.results ?? [];
+    await Promise.all(results.map((item, index) => {
+      const record = parsed[index];
+      if (!item.device_id || !item.recorded_at || !record) return Promise.resolve();
+      return persistLocationMetadata(supabase, item.device_id, item.recorded_at, {
+        source: String(record.location_source ?? "GNSS"),
+        confidence: Number(record.location_confidence ?? 0),
+        stale: Boolean(record.location_stale),
+      });
+    }));
 
     // Critical-event email dispatch per record (no-op unless critical events exist)
     for (const r of results) {
@@ -320,13 +379,18 @@ serve(async (req) => {
   const data = parsePayload(url, body);
 
   if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
-  if (!isValidCoords(data.latitude, data.longitude)) {
-    return corsResponse({ error: "Missing or invalid coordinates" }, 400);
+  const location = await resolveLocation(data, supabase);
+  if (!location) {
+    return corsResponse({ error: "No usable location source or previous position" }, 400);
   }
 
   // Single server-side RPC: resolves the device, stores telemetry, derives
   // events/alerts/trips/odometer/maintenance, and returns any pending command.
-  const args: Record<string, unknown> = recordToRpcArgs(toIngestRecord(data, data.ident));
+  const ingestRecord = toIngestRecord(data, data.ident, location);
+  delete ingestRecord.location_source;
+  delete ingestRecord.location_confidence;
+  delete ingestRecord.location_stale;
+  const args: Record<string, unknown> = recordToRpcArgs(ingestRecord);
   args.p_test = isTest;
 
   const { data: rpcData, error: rpcError } = await supabase.rpc("ingest_position", args);
@@ -345,6 +409,13 @@ serve(async (req) => {
 
   if (result.test) {
     return corsResponse({ ok: true, test: true, device_id: result.device_id, message: "Device recognized" });
+  }
+  if (result.device_id && result.recorded_at) {
+    await persistLocationMetadata(supabase, result.device_id, result.recorded_at, {
+      source: String(location.source),
+      confidence: Number(location.confidence ?? 0),
+      stale: Boolean(location.stale),
+    });
   }
 
   // Critical events also surface as actionable alerts in the notification inbox

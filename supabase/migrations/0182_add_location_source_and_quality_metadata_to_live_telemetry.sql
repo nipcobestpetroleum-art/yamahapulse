@@ -1,0 +1,1 @@
+ALTER TABLE public.latest_positions ADD COLUMN IF NOT EXISTS location_source text NOT NULL DEFAULT 'GNSS', ADD COLUMN IF NOT EXISTS location_confidence numeric, ADD COLUMN IF NOT EXISTS location_stale boolean NOT NULL DEFAULT false;

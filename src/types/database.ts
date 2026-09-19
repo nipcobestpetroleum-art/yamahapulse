@@ -309,6 +309,9 @@ export type Position = {
   battery_voltage_mv: number | null;
   battery_current_ma: number | null;
   external_voltage_mv: number | null;
+  location_source: "GNSS" | "CELL" | "WIFI" | "BLUETOOTH" | "ESTIMATED" | "LAST_KNOWN";
+  location_confidence: number | null;
+  location_stale: boolean;
 };
 
 export type LatestPosition = Omit<Position, "id"> & {

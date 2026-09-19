@@ -1,0 +1,1 @@
+COMMENT ON COLUMN public.positions.location_source IS 'GNSS, CELL, WIFI, BLUETOOTH, ESTIMATED, or LAST_KNOWN';
