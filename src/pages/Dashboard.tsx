@@ -139,7 +139,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
     let cancelled = false;
     supabase
       .from("device_assignments")
-      .select("device_id, device:gps_devices!device_assignments_device_id_fkey(id,name,imei), vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number), driver:drivers!drivers_vehicle_id_fkey(id,name,phone,email,license_number,status,avatar_url)")
+      .select("device_id, device:gps_devices!device_assignments_device_id_fkey(id,name,imei), vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number,driver:drivers!drivers_vehicle_id_fkey(name,phone,email,license_number,status,avatar_url))")
       .eq("organization_id", organizationId)
       .is("unassigned_at", null)
       .then(({ data, error }) => {
@@ -152,8 +152,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
         const rows = (data ?? []) as unknown as {
           device_id: string;
           device: { id: string; name: string; imei: string } | null;
-          vehicle: { id: string; name: string; registration_number: string | null } | null;
-          driver: { name: string; phone: string | null; email: string | null; license_number: string | null; status: string; avatar_url: string | null } | null;
+          vehicle: { id: string; name: string; registration_number: string | null; driver: { name: string; phone: string | null; email: string | null; license_number: string | null; status: string; avatar_url: string | null } | null } | null;
         }[];
         setAssignments(rows.filter((row) => row.device && row.vehicle).map((row) => ({
           deviceId: row.device!.id,
@@ -162,7 +161,7 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
           vehicleName: row.vehicle!.name,
           registration: row.vehicle!.registration_number,
           position: null,
-          driver: row.driver ?? null,
+          driver: row.vehicle!.driver ?? null,
         })));
       });
     return () => { cancelled = true; };
