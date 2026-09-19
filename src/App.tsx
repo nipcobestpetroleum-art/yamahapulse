@@ -64,6 +64,7 @@ import OrganizationPage from "./pages/admin/OrganizationPage";
 import BranchesPage from "./pages/admin/BranchesPage";
 import SystemHealthPage from "./pages/admin/SystemHealthPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import PlatformModulesPage from "./pages/PlatformModulesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -110,6 +111,10 @@ const App = () => (
               <Route path="/finance/payments" element={<PaymentsPage />} />
               <Route path="/finance/affiliates" element={<AffiliatesPage />} />
               <Route path="/finance/collections" element={<CollectionsPage />} />
+              <Route path="/finance/billing" element={<PlatformModulesPage />} />
+              <Route path="/finance/wallet" element={<PlatformModulesPage />} />
+              <Route path="/finance/invoices" element={<PlatformModulesPage />} />
+              <Route path="/finance/subscriptions" element={<PlatformModulesPage />} />
               <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />
@@ -169,6 +174,10 @@ const App = () => (
               <Route path="/admin/organization" element={<OrganizationPage />} />
               <Route path="/admin/branches" element={<BranchesPage />} />
               <Route path="/admin/system-health" element={<SystemHealthPage />} />
+              <Route path="/admin/roles" element={<PlatformModulesPage />} />
+              <Route path="/admin/api-keys" element={<PlatformModulesPage />} />
+              <Route path="/admin/integrations" element={<PlatformModulesPage />} />
+              <Route path="/admin/settings" element={<OrganizationPage />} />
 
               {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />
