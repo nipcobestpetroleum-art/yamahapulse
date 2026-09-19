@@ -1,0 +1,1 @@
+ALTER TABLE public.installments ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,1 @@
+CREATE POLICY installments_select ON public.installments FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

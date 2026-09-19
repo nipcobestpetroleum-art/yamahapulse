@@ -1,0 +1,1 @@
+ALTER TABLE public.hire_purchase_contracts ENABLE ROW LEVEL SECURITY;

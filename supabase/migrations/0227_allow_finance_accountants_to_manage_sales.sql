@@ -1,0 +1,1 @@
+CREATE POLICY sales_accountant_write ON public.sales FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['ACCOUNTANT'])) WITH CHECK (has_org_role(organization_id, ARRAY['ACCOUNTANT']));

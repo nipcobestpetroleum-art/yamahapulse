@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sales, public.sales_contracts, public.hire_purchase_contracts, public.installments TO authenticated;

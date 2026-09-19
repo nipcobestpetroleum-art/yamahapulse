@@ -1,0 +1,1 @@
+CREATE POLICY hire_purchase_accountant_write ON public.hire_purchase_contracts FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['ACCOUNTANT'])) WITH CHECK (has_org_role(organization_id, ARRAY['ACCOUNTANT']));

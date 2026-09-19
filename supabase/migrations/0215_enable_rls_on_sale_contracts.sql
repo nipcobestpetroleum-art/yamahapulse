@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_contracts ENABLE ROW LEVEL SECURITY;

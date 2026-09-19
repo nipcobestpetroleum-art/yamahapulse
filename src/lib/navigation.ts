@@ -37,6 +37,7 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
+  ShoppingCart,
   Signal,
   Siren,
   SlidersHorizontal,
@@ -163,7 +164,8 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Wallet,
     roles: FINANCE_ROLES,
     items: [
-      { title: "Expenses", href: "/finance/expenses", icon: Coins },
+      { title: "Expenses", href: "/expenses", icon: Coins, implemented: true },
+      { title: "Bike Sales", href: "/finance/sales", icon: ShoppingCart, implemented: true },
       { title: "Billing", href: "/finance/billing", icon: CreditCard },
       { title: "Wallet", href: "/finance/wallet", icon: Wallet },
       { title: "Invoices", href: "/finance/invoices", icon: Receipt },

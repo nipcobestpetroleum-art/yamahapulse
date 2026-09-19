@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.sales, public.sales_contracts, public.hire_purchase_contracts, public.installments FROM anon;

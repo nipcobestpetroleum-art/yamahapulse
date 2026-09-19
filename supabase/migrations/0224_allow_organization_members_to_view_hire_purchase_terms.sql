@@ -1,0 +1,1 @@
+CREATE POLICY hire_purchase_select ON public.hire_purchase_contracts FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

@@ -1,0 +1,1 @@
+CREATE POLICY sales_select ON public.sales FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));
