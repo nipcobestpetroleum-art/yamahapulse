@@ -28,6 +28,7 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
   const mapRef = useRef<MapboxMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const popupRef = useRef<Popup | null>(null);
+  const autoFittedRef = useRef(false);
   const callbacksRef = useRef({ onMarkerClick, onMapClick, onViewChange });
   callbacksRef.current = { onMarkerClick, onMapClick, onViewChange };
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(token ? "loading" : "idle");
@@ -78,12 +79,17 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
       const element = document.createElement("button");
       element.type = "button";
       element.title = spec.title;
-      element.style.width = `${(spec.scale ?? 8) * 2}px`;
-      element.style.height = `${(spec.scale ?? 8) * 2}px`;
+      const isBike = spec.icon === "bike";
+      element.style.width = isBike ? "36px" : `${(spec.scale ?? 8) * 2}px`;
+      element.style.height = isBike ? "36px" : `${(spec.scale ?? 8) * 2}px`;
       element.style.borderRadius = "9999px";
-      element.style.background = spec.color ?? "#6366f1";
+      element.style.background = isBike ? "white" : spec.color ?? "#6366f1";
       element.style.border = spec.id === selectedMarkerId ? "3px solid white" : "2px solid white";
       element.style.boxShadow = "0 2px 8px rgba(15,23,42,.35)";
+      element.style.display = "flex";
+      element.style.alignItems = "center";
+      element.style.justifyContent = "center";
+      if (isBike) element.innerHTML = `<svg viewBox="0 0 24 24" width="25" height="25" aria-hidden="true"><circle cx="6" cy="17" r="3" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-width="2"/><circle cx="18" cy="17" r="3" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-width="2"/><path d="M6 17l3-7h4l2 7m-5-7l-2-3h3m-1 3l3 4h5" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`;
       element.addEventListener("click", (event) => {
         event.stopPropagation();
         popupRef.current?.remove();
@@ -129,6 +135,16 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
     if (!map || !viewRequest) return;
     map.flyTo({ center: [viewRequest.lng, viewRequest.lat], zoom: viewRequest.zoom ?? map.getZoom(), essential: true });
   }, [viewRequest?.nonce]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready" || autoFittedRef.current) return;
+    const valid = markers.filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng));
+    if (valid.length === 0) return;
+    const lngs = valid.map((marker) => marker.lng); const lats = valid.map((marker) => marker.lat);
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, maxZoom: 15, essential: true });
+    autoFittedRef.current = true;
+  }, [markers, status]);
 
   useEffect(() => {
     const map = mapRef.current;

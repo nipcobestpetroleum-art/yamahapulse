@@ -45,6 +45,7 @@ export function FleetPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
         lat: position.latitude,
         lng: position.longitude,
         title: vehicle.vehicleName,
+        icon: "bike" as const,
         color: STATUS_MARKER_COLORS[status],
         snippet: [
           vehicle.registration ?? "Unregistered",

@@ -10,6 +10,7 @@ export interface MapMarkerSpec {
   color?: string;
   snippet?: string[];
   scale?: number;
+  icon?: "bike" | "dot";
 }
 
 export interface MapPolylineSpec {

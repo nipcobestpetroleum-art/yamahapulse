@@ -155,6 +155,7 @@ export interface Driver {
   email: string | null;
   license_number: string | null;
   ibutton_id: string | null;
+  avatar_url: string | null;
   vehicle_id: string | null;
   status: DriverStatus;
   notes: string | null;
