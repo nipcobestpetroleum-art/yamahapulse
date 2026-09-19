@@ -97,10 +97,14 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || status !== "ready") return;
-    if (!map.getSource("mapbox-dem")) map.addSource("mapbox-dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
-    if (terrain3d) map.setTerrain({ source: "mapbox-dem", exaggeration: 1.25 });
-    else if (!terrain3d) map.setTerrain(null);
+    if (!map || status !== "ready" || !map.isStyleLoaded()) return;
+    try {
+      if (!map.getSource("mapbox-dem")) map.addSource("mapbox-dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
+      if (terrain3d) map.setTerrain({ source: "mapbox-dem", exaggeration: 1.25 });
+      else map.setTerrain(null);
+    } catch {
+      return;
+    }
     const sourceId = "mapstudio-lines";
     const layerId = "mapstudio-lines-layer";
     const data = { type: "FeatureCollection" as const, features: polylines.filter((line) => line.points.length > 1).map((line) => ({ type: "Feature" as const, properties: { color: line.color ?? "#6366f1", weight: line.weight ?? 4, opacity: line.opacity ?? 0.9, dashed: Boolean(line.dashed) }, geometry: { type: "LineString" as const, coordinates: line.points.map(([lat, lng]) => [lng, lat]) } })) };
@@ -109,7 +113,15 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
       map.addSource(sourceId, { type: "geojson", data });
       map.addLayer({ id: layerId, type: "line", source: sourceId, paint: { "line-color": ["get", "color"], "line-width": ["get", "weight"], "line-opacity": ["get", "opacity"], "line-dasharray": ["case", ["get", "dashed"], [2, 2], [1, 0]] } });
     }
-    return () => { if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
+    return () => {
+      if (!map.isStyleLoaded()) return;
+      try {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // The style may have been replaced between cleanup and teardown.
+      }
+    };
   }, [polylines, status, terrain3d, styleRevision]);
 
   useEffect(() => {
