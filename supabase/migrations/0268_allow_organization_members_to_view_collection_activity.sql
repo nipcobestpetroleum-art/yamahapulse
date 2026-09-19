@@ -1,0 +1,1 @@
+CREATE POLICY collection_actions_select ON public.collection_actions FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.collection_actions, public.promise_to_pay FROM anon;

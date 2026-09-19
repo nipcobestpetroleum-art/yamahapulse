@@ -1,0 +1,1 @@
+ALTER TABLE public.promise_to_pay ENABLE ROW LEVEL SECURITY;

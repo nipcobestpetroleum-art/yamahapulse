@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.collection_actions, public.promise_to_pay TO service_role;

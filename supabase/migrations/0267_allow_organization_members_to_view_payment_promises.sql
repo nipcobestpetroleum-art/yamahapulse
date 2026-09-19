@@ -1,0 +1,1 @@
+CREATE POLICY promise_to_pay_select ON public.promise_to_pay FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));
