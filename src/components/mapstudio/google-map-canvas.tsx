@@ -62,6 +62,7 @@ export function GoogleMapCanvas({
 
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(apiKey ? "loading" : "idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [ipLocating, setIpLocating] = useState(false);
 
   // Create the map once a key is available.
@@ -219,14 +220,15 @@ export function GoogleMapCanvas({
   const locateWithGoogle = async () => {
     if (ipLocating) return;
     setIpLocating(true);
+    setLocationError(null);
     try {
       const data = await gmapsInvoke<GeolocateResponse>("geolocate");
       if (data.location && mapRef.current) {
         mapRef.current.panTo({ lat: data.location.lat, lng: data.location.lng });
         mapRef.current.setZoom(13);
       }
-    } catch {
-      // IP geolocation is best-effort; ignore failures.
+    } catch (error) {
+      setLocationError(error instanceof Error ? error.message : "Google Geolocation is unavailable");
     } finally {
       setIpLocating(false);
     }
@@ -255,6 +257,11 @@ export function GoogleMapCanvas({
 
       {status === "ready" && (
         <>
+          {locationError && (
+            <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-amber-500/30 bg-background/90 px-3 py-2 text-xs text-amber-300 shadow-lg backdrop-blur">
+              {locationError}. Browser GPS remains available through the GPS button.
+            </div>
+          )}
           <div className="pointer-events-none absolute left-3 top-3">
             <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-background/75 px-3 py-2 text-xs font-medium text-foreground backdrop-blur">
               <span className="h-2.5 w-2.5 rounded-full bg-primary" />
