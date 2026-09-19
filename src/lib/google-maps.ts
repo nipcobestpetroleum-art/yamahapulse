@@ -66,14 +66,15 @@ export async function gmapsInvoke<T>(resource: GmapsResource, params: Record<str
 
 export async function fetchBrowserMapKey(): Promise<string> {
   const data = await gmapsInvoke<{ key?: string }>("browser-key");
-  if (!data.key) throw new GmapsError("Browser map key unavailable", "NO_KEY");
-  if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(data.key)) {
+  const key = data.key?.trim();
+  if (!key) throw new GmapsError("Browser map key unavailable", "NO_KEY");
+  if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(key)) {
     throw new GmapsError(
       "The Google Maps browser secret is not an API key value. Copy the actual key beginning with AIza from Google Cloud Credentials.",
       "INVALID_KEY_FORMAT",
     );
   }
-  return data.key;
+  return key;
 }
 
 // ---------- Maps JavaScript API loader ----------
