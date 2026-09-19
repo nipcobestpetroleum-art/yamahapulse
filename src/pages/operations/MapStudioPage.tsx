@@ -32,6 +32,7 @@ export default function MapStudioPage() {
 
   const [keyStatus, setKeyStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
   const [browserKey, setBrowserKey] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<StudioTab>("fleet");
   const [overlaysByTab, setOverlaysByTab] = useState<Record<StudioTab, StudioOverlays>>({
@@ -58,7 +59,10 @@ export default function MapStudioPage() {
         setBrowserKey(key);
         setKeyStatus("ready");
       })
-      .catch(() => setKeyStatus("missing"));
+      .catch((error: unknown) => {
+        setKeyError(error instanceof Error ? error.message : "Google Maps API key is unavailable");
+        setKeyStatus("missing");
+      });
   }, []);
 
   useEffect(() => {
@@ -155,7 +159,7 @@ export default function MapStudioPage() {
       {keyStatus !== "ready" && (
         <Card className="border-amber-500/25 bg-amber-500/5">
           <CardContent className="space-y-2 p-4 text-sm">
-            <div className="font-semibold text-amber-400">Set up Google Maps in two steps</div>
+            <div className="font-semibold text-amber-400">{keyError ?? "Set up Google Maps in two steps"}</div>
             <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
               <li>
                 In Google Cloud Console, enable these APIs on your project: <span className="font-mono text-xs">Maps JavaScript API, Maps Static API, Map Tiles API, Street View Static API, Routes API, Route Optimization API, Roads API, Places API, Geocoding API, Geolocation API, Weather API, Air Quality API, Pollen API, Solar API</span>.
