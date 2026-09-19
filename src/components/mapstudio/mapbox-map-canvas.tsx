@@ -80,16 +80,27 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
       element.type = "button";
       element.title = spec.title;
       const isBike = spec.icon === "bike";
-      element.style.width = isBike ? "36px" : `${(spec.scale ?? 8) * 2}px`;
-      element.style.height = isBike ? "36px" : `${(spec.scale ?? 8) * 2}px`;
-      element.style.borderRadius = "9999px";
-      element.style.background = isBike ? "white" : spec.color ?? "#6366f1";
+      element.style.width = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
+      element.style.height = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
+      element.style.borderRadius = isBike ? "14px" : "9999px";
+      element.style.background = isBike ? "#fff" : spec.color ?? "#6366f1";
       element.style.border = spec.id === selectedMarkerId ? "3px solid white" : "2px solid white";
       element.style.boxShadow = "0 2px 8px rgba(15,23,42,.35)";
       element.style.display = "flex";
       element.style.alignItems = "center";
       element.style.justifyContent = "center";
-      if (isBike) element.innerHTML = `<svg viewBox="0 0 24 24" width="25" height="25" aria-hidden="true"><circle cx="6" cy="17" r="3" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-width="2"/><circle cx="18" cy="17" r="3" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-width="2"/><path d="M6 17l3-7h4l2 7m-5-7l-2-3h3m-1 3l3 4h5" fill="none" stroke="${spec.color ?? "#10b981"}" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>`;
+      element.style.overflow = "hidden";
+      if (isBike) {
+        const image = document.createElement("img");
+        image.src = "/assets/fleet-motorcycle.png";
+        image.alt = "Motorcycle location";
+        image.draggable = false;
+        image.style.width = "100%";
+        image.style.height = "100%";
+        image.style.objectFit = "contain";
+        image.style.transform = `rotate(${(spec.bearing ?? 90) - 90}deg)`;
+        element.appendChild(image);
+      }
       element.addEventListener("click", (event) => {
         event.stopPropagation();
         popupRef.current?.remove();

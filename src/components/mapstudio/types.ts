@@ -10,6 +10,7 @@ export interface MapMarkerSpec {
   color?: string;
   snippet?: string[];
   scale?: number;
+  bearing?: number;
   icon?: "bike" | "dot";
 }
 

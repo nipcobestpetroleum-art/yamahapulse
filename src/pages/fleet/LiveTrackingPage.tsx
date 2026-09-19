@@ -257,7 +257,7 @@ export default function LiveTrackingPage() {
       };
       })
       .filter(Boolean) as LiveMapVehicle[];
-  }, [filtered, positionsByDeviceId, trails]);
+  }, [filtered, positionsByDeviceId, roadTrails, trails]);
 
   const stats = useMemo(() => {
     const counts = { tracked: vehiclesToTrack.length, moving: 0, idling: 0, stopped: 0, offline: 0, noData: 0, unknown: 0 };
