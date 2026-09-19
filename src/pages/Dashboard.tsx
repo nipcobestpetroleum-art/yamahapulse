@@ -400,14 +400,14 @@ export default function Dashboard() {
       />
 
       {!stats ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-[92px] rounded-xl" />
           ))}
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2">
             <KpiCard icon={Car} label="Total vehicles" value={stats.vehiclesTotal} sub={`${stats.fleetsTotal} fleets`} href="/vehicles" />
             <KpiCard icon={Activity} label="Active vehicles" value={stats.vehiclesActive} sub={`${stats.vehiclesMaintenance} in maintenance`} href="/vehicles?status=ACTIVE" />
             <KpiCard icon={Cpu} label="GPS devices" value={stats.devicesTotal} sub={`${stats.devicesInStock} in stock`} href="/devices" />
