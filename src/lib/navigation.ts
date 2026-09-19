@@ -12,6 +12,7 @@ import {
   Car,
   ClipboardCheck,
   Coins,
+  Compass,
   Cpu,
   CreditCard,
   Disc3,
@@ -114,6 +115,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Operations",
     icon: ClipboardCheck,
     items: [
+      { title: "Map Studio", href: "/operations/map-studio", icon: Compass, implemented: true },
       { title: "Jobs", href: "/operations/jobs", icon: ClipboardCheck, implemented: true },
       { title: "Dispatch", href: "/operations/dispatch", icon: Radar, implemented: true },
       { title: "Trip Management", href: "/operations/trips", icon: Route, implemented: true },

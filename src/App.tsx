@@ -37,6 +37,7 @@ import FuelConsumptionPage from "./pages/fuel/FuelConsumptionPage";
 import TheftDetectionPage from "./pages/fuel/TheftDetectionPage";
 import JobsPage from "./pages/operations/JobsPage";
 import DispatchPage from "./pages/operations/DispatchPage";
+import MapStudioPage from "./pages/operations/MapStudioPage";
 import DriverBehaviourPage from "./pages/operations/DriverBehaviourPage";
 import MaintenanceDashboardPage from "./pages/maintenance/MaintenanceDashboardPage";
 import InspectionsPage from "./pages/maintenance/InspectionsPage";
@@ -132,6 +133,7 @@ const App = () => (
               <Route path="/operations/dispatch" element={<DispatchPage />} />
               <Route path="/operations/trips" element={<TripsPage />} />
               <Route path="/operations/route-planning" element={<RoutesPage />} />
+              <Route path="/operations/map-studio" element={<MapStudioPage />} />
               <Route path="/operations/driver-behaviour" element={<DriverBehaviourPage />} />
 
               {/* Phase 5 */}
