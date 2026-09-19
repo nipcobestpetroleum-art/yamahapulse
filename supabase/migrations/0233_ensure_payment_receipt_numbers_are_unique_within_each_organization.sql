@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS payments_receipt_number_idx ON public.payments (organization_id, receipt_number);

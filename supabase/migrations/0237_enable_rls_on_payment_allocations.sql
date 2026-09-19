@@ -1,0 +1,1 @@
+ALTER TABLE public.payment_allocations ENABLE ROW LEVEL SECURITY;

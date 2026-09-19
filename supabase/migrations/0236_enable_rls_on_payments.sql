@@ -1,0 +1,1 @@
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;

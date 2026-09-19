@@ -1,0 +1,1 @@
+CREATE POLICY payments_write ON public.payments FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','ACCOUNTANT'])) WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','ACCOUNTANT']));

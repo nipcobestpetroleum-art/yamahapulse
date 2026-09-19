@@ -13,6 +13,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import ExpensesPage from "./pages/finance/ExpensesPage";
 import SalesPage from "./pages/finance/SalesPage";
+import PaymentsPage from "./pages/finance/PaymentsPage";
 import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
               <Route path="/finance/sales" element={<SalesPage />} />
+              <Route path="/finance/payments" element={<PaymentsPage />} />
               <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />

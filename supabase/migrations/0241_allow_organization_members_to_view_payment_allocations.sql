@@ -1,0 +1,1 @@
+CREATE POLICY payment_allocations_select ON public.payment_allocations FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

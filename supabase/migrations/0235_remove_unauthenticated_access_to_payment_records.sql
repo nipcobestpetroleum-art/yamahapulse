@@ -1,0 +1,1 @@
+REVOKE ALL ON TABLE public.payments, public.payment_allocations FROM anon;

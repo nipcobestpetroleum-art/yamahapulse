@@ -166,6 +166,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Expenses", href: "/expenses", icon: Coins, implemented: true },
       { title: "Bike Sales", href: "/finance/sales", icon: ShoppingCart, implemented: true },
+      { title: "Payments", href: "/finance/payments", icon: CreditCard, implemented: true },
       { title: "Billing", href: "/finance/billing", icon: CreditCard },
       { title: "Wallet", href: "/finance/wallet", icon: Wallet },
       { title: "Invoices", href: "/finance/invoices", icon: Receipt },
