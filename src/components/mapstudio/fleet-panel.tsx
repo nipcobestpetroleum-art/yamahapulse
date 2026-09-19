@@ -90,11 +90,12 @@ export function FleetPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
           .filter((row) => Number.isFinite(row.latitude) && Number.isFinite(row.longitude) && !(row.latitude === 0 && row.longitude === 0))
           .map((row) => [row.latitude, row.longitude] as [number, number]);
         setTrailPoints(points);
+        if (points.length > 1) fitOverlays();
       });
     return () => {
       cancelled = true;
     };
-  }, [showTrail, selectedDeviceId]);
+  }, [fitOverlays, showTrail, selectedDeviceId]);
 
   const stats = useMemo(() => {
     const counts = { moving: 0, idling: 0, stopped: 0, offline: 0, other: 0 };

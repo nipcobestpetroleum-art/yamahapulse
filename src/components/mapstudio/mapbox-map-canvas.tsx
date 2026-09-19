@@ -151,21 +151,23 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== "ready" || autoFittedRef.current) return;
-    const valid = markers.filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng));
+    const points = [...markers.map((marker) => [marker.lat, marker.lng] as [number, number]), ...polylines.flatMap((line) => line.points)];
+    const valid = points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
     if (valid.length === 0) return;
-    const lngs = valid.map((marker) => marker.lng); const lats = valid.map((marker) => marker.lat);
+    const lngs = valid.map(([, lng]) => lng); const lats = valid.map(([lat]) => lat);
     map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, maxZoom: 15, essential: true });
     autoFittedRef.current = true;
-  }, [markers, status]);
+  }, [markers, polylines, status]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !fitNonce) return;
-    const valid = markers.filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng));
+    const points = [...markers.map((marker) => [marker.lat, marker.lng] as [number, number]), ...polylines.flatMap((line) => line.points)];
+    const valid = points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
     if (valid.length === 0) return;
-    const lngs = valid.map((marker) => marker.lng); const lats = valid.map((marker) => marker.lat);
+    const lngs = valid.map(([, lng]) => lng); const lats = valid.map(([lat]) => lat);
     map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 70, maxZoom: 15, essential: true });
-  }, [fitNonce]);
+  }, [fitNonce, markers, polylines]);
 
   const locate = () => navigator.geolocation?.getCurrentPosition((position) => mapRef.current?.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 15, essential: true }), undefined, { enableHighAccuracy: true, timeout: 8000 });
 
