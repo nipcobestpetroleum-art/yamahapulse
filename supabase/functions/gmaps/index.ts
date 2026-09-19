@@ -543,7 +543,8 @@ serve(async (req) => {
     : {};
 
   if (resource === "browser-key") {
-    const key = (Deno.env.get("GOOGLE_MAPS_BROWSER_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "").trim();
+    const rawKey = (Deno.env.get("GOOGLE_MAPS_BROWSER_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "").trim();
+    const key = rawKey.replace(/^(?:\"|')|(?:\"|')$/g, "").trim();
     if (!key) {
       console.warn("[gmaps] no google maps key configured");
       return jsonResponse({ error: "Google Maps is not configured", code: "GOOGLE_MAPS_NOT_CONFIGURED" }, 503);
