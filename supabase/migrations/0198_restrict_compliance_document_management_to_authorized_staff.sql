@@ -1,0 +1,1 @@
+CREATE POLICY driver_documents_write ON public.driver_documents FOR ALL TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','DRIVER_MANAGER'])) WITH CHECK (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','DRIVER_MANAGER']));

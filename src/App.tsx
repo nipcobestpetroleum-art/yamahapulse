@@ -19,6 +19,7 @@ import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
 import AssetDetailPage from "./pages/fleet/AssetDetailPage";
 import BatteryMonitoringPage from "./pages/assets/BatteryMonitoringPage";
 import DriversPage from "./pages/fleet/DriversPage";
+import DriverCompliancePage from "./pages/fleet/DriverCompliancePage";
 import TripsPage from "./pages/fleet/TripsPage";
 import MileagePage from "./pages/fleet/MileagePage";
 import RoutesPage from "./pages/fleet/RoutesPage";
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
               <Route path="/fleet/live/:deviceId" element={<AssetDetailPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />
+              <Route path="/fleet/driver-compliance" element={<DriverCompliancePage />} />
               <Route path="/fleet/trips" element={<TripsPage />} />
               <Route path="/fleet/mileage" element={<MileagePage />} />
               <Route path="/fleet/routes" element={<RoutesPage />} />

@@ -1,0 +1,1 @@
+CREATE POLICY driver_guarantors_select ON public.driver_guarantors FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

@@ -1,0 +1,1 @@
+CREATE POLICY driver_documents_select ON public.driver_documents FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

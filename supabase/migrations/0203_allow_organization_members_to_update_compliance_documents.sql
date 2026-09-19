@@ -1,0 +1,1 @@
+CREATE POLICY driver_documents_storage_update ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] IN (SELECT current_user_org_ids()::text)) WITH CHECK (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] IN (SELECT current_user_org_ids()::text));

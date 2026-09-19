@@ -1,0 +1,1 @@
+ALTER TABLE public.guarantors ENABLE ROW LEVEL SECURITY;

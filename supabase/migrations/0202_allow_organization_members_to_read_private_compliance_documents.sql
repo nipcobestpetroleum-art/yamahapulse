@@ -1,0 +1,1 @@
+CREATE POLICY driver_documents_storage_select ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] IN (SELECT current_user_org_ids()::text));

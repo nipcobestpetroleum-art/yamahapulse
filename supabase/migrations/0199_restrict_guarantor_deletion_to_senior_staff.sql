@@ -1,0 +1,1 @@
+CREATE POLICY guarantors_delete ON public.guarantors FOR DELETE TO authenticated USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','FLEET_MANAGER']));

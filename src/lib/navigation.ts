@@ -80,6 +80,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Vehicles", href: "/vehicles", icon: Car, implemented: true },
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
       { title: "Drivers", href: "/fleet/drivers", icon: Users, implemented: true },
+      { title: "Driver Compliance", href: "/fleet/driver-compliance", icon: FileText, implemented: true },
       { title: "Trips", href: "/fleet/trips", icon: Route, implemented: true },
       { title: "Mileage & Telemetry", href: "/fleet/mileage", icon: Gauge, implemented: true },
       { title: "Routes", href: "/fleet/routes", icon: Navigation, implemented: true },

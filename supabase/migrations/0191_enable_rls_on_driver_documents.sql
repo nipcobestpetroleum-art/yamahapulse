@@ -1,0 +1,1 @@
+ALTER TABLE public.driver_documents ENABLE ROW LEVEL SECURITY;

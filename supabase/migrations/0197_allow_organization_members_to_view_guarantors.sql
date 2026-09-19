@@ -1,0 +1,1 @@
+CREATE POLICY guarantors_select ON public.guarantors FOR SELECT TO authenticated USING (organization_id IN (SELECT current_user_org_ids()));

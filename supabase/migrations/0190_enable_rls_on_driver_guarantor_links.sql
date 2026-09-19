@@ -1,0 +1,1 @@
+ALTER TABLE public.driver_guarantors ENABLE ROW LEVEL SECURITY;

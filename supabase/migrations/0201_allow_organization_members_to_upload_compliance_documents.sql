@@ -1,0 +1,1 @@
+CREATE POLICY driver_documents_storage_insert ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] IN (SELECT current_user_org_ids()::text));

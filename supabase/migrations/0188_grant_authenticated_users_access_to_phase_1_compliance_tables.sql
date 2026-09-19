@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.guarantors, public.driver_guarantors, public.driver_documents TO authenticated;
