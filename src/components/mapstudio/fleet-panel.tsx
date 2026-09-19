@@ -8,14 +8,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
-import type { StudioOverlays, StudioVehicle } from "@/components/mapstudio/types";
+import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
 import { STATUS_MARKER_COLORS } from "@/components/mapstudio/types";
 
 interface FleetPanelProps {
   vehicles: StudioVehicle[];
   selectedDeviceId: string | null;
   onSelectDevice: (deviceId: string) => void;
-  setOverlays: (overlays: StudioOverlays) => void;
+  setOverlays: (tab: StudioTab, overlays: StudioOverlays) => void;
   requestView: (view: { lat: number; lng: number; zoom?: number }) => void;
   fitOverlays: () => void;
 }
@@ -60,7 +60,7 @@ export function FleetPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
         ? [{ id: "fleet:trail", points: trailPoints, color: "#6366f1", weight: 4, opacity: 0.85 }]
         : [];
 
-    setOverlays({ markers, polylines });
+    setOverlays("fleet", { markers, polylines });
   }, [positioned, showTrail, trailPoints, setOverlays]);
 
   // Load recent GPS history for the selected vehicle when trail mode is on.

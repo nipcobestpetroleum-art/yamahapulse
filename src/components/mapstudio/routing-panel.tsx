@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PlaceAutocomplete } from "@/components/mapstudio/place-autocomplete";
-import type { StudioOverlays, StudioVehicle } from "@/components/mapstudio/types";
+import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
 import {
   decodePolyline,
   formatDurationSeconds,
@@ -40,7 +40,7 @@ interface RouteResult {
 interface RoutingPanelProps {
   vehicles: StudioVehicle[];
   selectedDeviceId: string | null;
-  setOverlays: (overlays: StudioOverlays) => void;
+  setOverlays: (tab: StudioTab, overlays: StudioOverlays) => void;
   fitOverlays: () => void;
 }
 
@@ -78,7 +78,7 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
 
   const drawRoute = (from: SelectedPoint, routeStops: SelectedPoint[], to: SelectedPoint, encoded: string) => {
     const decoded = decodePolyline(encoded).map((point) => [point.lat, point.lng] as [number, number]);
-    setOverlays({
+    setOverlays("routing", {
       markers: [
         { id: "route:origin", lat: from.lat, lng: from.lng, title: "Origin", color: "#10b981", scale: 9, snippet: [from.label] },
         ...routeStops.map((stop, index) => ({
@@ -309,7 +309,7 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
                 setOptimizedOrder(null);
                 setMatrix(null);
                 setError(null);
-                setOverlays({ markers: [], polylines: [] });
+                setOverlays("routing", { markers: [], polylines: [] });
               }}
             >
               <Eraser className="mr-2 h-4 w-4" /> Clear

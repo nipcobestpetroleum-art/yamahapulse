@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PlaceAutocomplete } from "@/components/mapstudio/place-autocomplete";
-import type { StudioOverlays } from "@/components/mapstudio/types";
+import type { StudioOverlays, StudioTab } from "@/components/mapstudio/types";
 import {
   gmapsInvoke,
   type GeocodeResponse,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/google-maps";
 
 interface PlacesPanelProps {
-  setOverlays: (overlays: StudioOverlays) => void;
+  setOverlays: (tab: StudioTab, overlays: StudioOverlays) => void;
   requestView: (view: { lat: number; lng: number; zoom?: number }) => void;
   lastMapClick: { lat: number; lng: number } | null;
 }
@@ -41,7 +41,7 @@ export function PlacesPanel({ setOverlays, requestView, lastMapClick }: PlacesPa
       const details = await gmapsInvoke<PlaceDetails>("place-details", { placeId: prediction.placeId });
       setPlace(details);
       if (details.location) {
-        setOverlays({
+        setOverlays("places", {
           markers: [
             {
               id: "place:selected",
@@ -207,7 +207,7 @@ export function PlacesPanel({ setOverlays, requestView, lastMapClick }: PlacesPa
                     type="button"
                     className="w-full rounded-lg border border-border bg-background/40 px-3 py-2 text-left text-xs transition-colors hover:border-primary/40"
                     onClick={() => {
-                      setOverlays({
+                      setOverlays("places", {
                         markers: [
                           {
                             id: "geocode:result",

@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import type { StudioOverlays, StudioVehicle } from "@/components/mapstudio/types";
+import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
 import { gmapsInvoke, type SnapToRoadsResponse, type SnappedPoint } from "@/lib/google-maps";
 
 interface RoadsPanelProps {
   vehicles: StudioVehicle[];
   selectedDeviceId: string | null;
   onSelectDevice: (deviceId: string) => void;
-  setOverlays: (overlays: StudioOverlays) => void;
+  setOverlays: (tab: StudioTab, overlays: StudioOverlays) => void;
   fitOverlays: () => void;
   lastMapClick: { lat: number; lng: number } | null;
 }
@@ -82,7 +82,7 @@ export function RoadsPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
 
       const snappedPath = snappedPoints.map((point) => [point.location.latitude, point.location.longitude] as [number, number]);
       const originalPath = points.map((point) => [point.latitude, point.longitude] as [number, number]);
-      setOverlays({
+      setOverlays("roads", {
         markers: [
           { id: "roads:start", lat: snappedPath[0][0], lng: snappedPath[0][1], title: "Trail start", color: "#10b981", scale: 7 },
           { id: "roads:end", lat: snappedPath[snappedPath.length - 1][0], lng: snappedPath[snappedPath.length - 1][1], title: "Trail end", color: "#6366f1", scale: 7 },

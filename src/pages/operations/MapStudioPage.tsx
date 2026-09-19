@@ -216,19 +216,19 @@ export default function MapStudioPage() {
             vehicles={vehicles}
             selectedDeviceId={selectedDeviceId}
             onSelectDevice={setSelectedDeviceId}
-            setOverlays={(next) => setOverlays("fleet", next)}
+            setOverlays={setOverlays}
             requestView={requestView}
             fitOverlays={fitOverlays}
           />
         </TabsContent>
         <TabsContent value="places" className="mt-4">
-          <PlacesPanel setOverlays={(next) => setOverlays("places", next)} requestView={requestView} lastMapClick={lastMapClick} />
+          <PlacesPanel setOverlays={setOverlays} requestView={requestView} lastMapClick={lastMapClick} />
         </TabsContent>
         <TabsContent value="routing" className="mt-4">
           <RoutingPanel
             vehicles={vehicles}
             selectedDeviceId={selectedDeviceId}
-            setOverlays={(next) => setOverlays("routing", next)}
+            setOverlays={setOverlays}
             fitOverlays={fitOverlays}
           />
         </TabsContent>
@@ -237,7 +237,7 @@ export default function MapStudioPage() {
             vehicles={vehicles}
             selectedDeviceId={selectedDeviceId}
             onSelectDevice={setSelectedDeviceId}
-            setOverlays={(next) => setOverlays("roads", next)}
+            setOverlays={setOverlays}
             fitOverlays={fitOverlays}
             lastMapClick={lastMapClick}
           />
