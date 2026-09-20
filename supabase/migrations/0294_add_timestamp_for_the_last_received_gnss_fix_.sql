@@ -1,0 +1,1 @@
+ALTER TABLE public.gps_devices ADD COLUMN IF NOT EXISTS last_gnss_fix_at timestamptz;

@@ -1,0 +1,1 @@
+ALTER TABLE public.gps_devices ADD COLUMN IF NOT EXISTS gnss_status text NOT NULL DEFAULT 'UNKNOWN' CHECK (gnss_status IN ('UNKNOWN','BLOCKED','RECEIVING'));

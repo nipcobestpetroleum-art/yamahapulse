@@ -113,6 +113,9 @@ export interface GpsDevice {
   protocol: string | null;
   status: DeviceStatus;
   last_seen_at: string | null;
+  gnss_status: "UNKNOWN" | "BLOCKED" | "RECEIVING";
+  gnss_status_changed_at: string | null;
+  last_gnss_fix_at: string | null;
   engine_immobilized: boolean;
   notes: string | null;
   created_at: string;

@@ -12,10 +12,12 @@ import {
   Pencil,
   Plus,
   Radio,
+  Satellite,
   Search,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +69,12 @@ const PAGE_SIZE = 12;
 interface DeviceRow extends GpsDevice {
   vehicle_id: string | null;
   vehicle_name: string | null;
+}
+
+function GnssStatus({ device }: { device: GpsDevice }) {
+  const receiving = device.gnss_status === "RECEIVING";
+  const blocked = device.gnss_status === "BLOCKED";
+  return <div className="space-y-1"><Badge variant="outline" className={receiving ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : blocked ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-muted-foreground/30 text-muted-foreground"}><Satellite className="mr-1 h-3 w-3" />{receiving ? "Receiving" : blocked ? "Blocked / down" : "No data"}</Badge>{device.last_gnss_fix_at && <p className="text-[11px] text-muted-foreground">Last fix {format(new Date(device.last_gnss_fix_at), "dd MMM, HH:mm")}</p>}{blocked && device.gnss_status_changed_at && <p className="text-[11px] text-amber-400">Since {format(new Date(device.gnss_status_changed_at), "dd MMM, HH:mm")}</p>}</div>;
 }
 
 export default function DevicesPage() {
@@ -326,7 +334,8 @@ export default function DevicesPage() {
                   <TableHead className="hidden md:table-cell">Model</TableHead>
                   <TableHead className="hidden lg:table-cell">Protocol</TableHead>
                   <TableHead className="hidden md:table-cell">Vehicle</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Device status</TableHead>
+                  <TableHead className="hidden lg:table-cell">GNSS</TableHead>
                   <TableHead className="hidden xl:table-cell">Added</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -364,6 +373,9 @@ export default function DevicesPage() {
                     </TableCell>
                     <TableCell>
                       <DeviceStatusBadge status={d.status} />
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <GnssStatus device={d} />
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
                       <span className="text-sm text-muted-foreground">

@@ -246,6 +246,32 @@ async function persistLocationMetadata(supabase: ReturnType<typeof createClient>
   ]);
 }
 
+async function updateGnssStatus(
+  supabase: ReturnType<typeof createClient>,
+  imei: string,
+  recordedAt: string | null,
+  satellites: number | null,
+  locationSource: string | null,
+) {
+  const { data: device } = await supabase
+    .from("gps_devices")
+    .select("id,gnss_status")
+    .eq("imei", imei)
+    .maybeSingle();
+  if (!device) return;
+
+  const timestamp = recordedAt && Number.isFinite(new Date(recordedAt).getTime())
+    ? recordedAt
+    : new Date().toISOString();
+  const receiving = locationSource === "GNSS" && satellites !== null && satellites > 0;
+  const status = receiving ? "RECEIVING" : "BLOCKED";
+  const updates: Record<string, unknown> = { gnss_status: status };
+  if (receiving) updates.last_gnss_fix_at = timestamp;
+  if (device.gnss_status !== status) updates.gnss_status_changed_at = timestamp;
+
+  await supabase.from("gps_devices").update(updates).eq("id", device.id);
+}
+
 async function resolveLocation(data: ReturnType<typeof parsePayload>, supabase: ReturnType<typeof createClient>) {
   const direct = chooseLocation(data);
   if (direct) return { ...direct, stale: false };
@@ -317,6 +343,7 @@ serve(async (req) => {
     for (const raw of batchRecords) {
       const rec = parsePayload(url, { ...raw, imei });
       const location = await resolveLocation(rec, supabase);
+      await updateGnssStatus(supabase, rec.ident, rec.recorded_at, rec.satellites, location?.source ?? null);
       if (!location) {
         invalid.push({ error: "No usable location source or previous position" });
         continue;
@@ -380,6 +407,7 @@ serve(async (req) => {
 
   if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
   const location = await resolveLocation(data, supabase);
+  await updateGnssStatus(supabase, data.ident, data.recorded_at, data.satellites, location?.source ?? null);
   if (!location) {
     return corsResponse({ error: "No usable location source or previous position" }, 400);
   }
