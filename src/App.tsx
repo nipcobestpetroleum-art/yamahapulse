@@ -61,6 +61,7 @@ import TechniciansPage from "./pages/assets/TechniciansPage";
 import UsersPage from "./pages/admin/UsersPage";
 import UserAssetAccessPage from "./pages/admin/UserAssetAccessPage";
 import OrganizationPage from "./pages/admin/OrganizationPage";
+import OrganizationsOverviewPage from "./pages/admin/OrganizationsOverviewPage";
 import BranchesPage from "./pages/admin/BranchesPage";
 import SystemHealthPage from "./pages/admin/SystemHealthPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -172,6 +173,7 @@ const App = () => (
               <Route path="/admin/users" element={<UsersPage />} />
               <Route path="/admin/user-asset-access" element={<UserAssetAccessPage />} />
               <Route path="/admin/organization" element={<OrganizationPage />} />
+              <Route path="/admin/organizations" element={<OrganizationsOverviewPage />} />
               <Route path="/admin/branches" element={<BranchesPage />} />
               <Route path="/admin/system-health" element={<SystemHealthPage />} />
               <Route path="/admin/roles" element={<PlatformModulesPage />} />
