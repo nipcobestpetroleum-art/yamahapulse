@@ -51,6 +51,7 @@ export function DeviceFormDialog({ open, onOpenChange, device, onSaved }: Props)
   const [imei, setImei] = useState("");
   const [modelId, setModelId] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [vinNumber, setVinNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [simIccid, setSimIccid] = useState("");
   const [status, setStatus] = useState<DeviceStatus>("IN_STOCK");
@@ -68,6 +69,7 @@ export function DeviceFormDialog({ open, onOpenChange, device, onSaved }: Props)
     setImei(device?.imei ?? "");
     setModelId(device?.device_model_id ?? "");
     setSerialNumber(device?.serial_number ?? "");
+    setVinNumber(device?.vin_number ?? "");
     setPhoneNumber(device?.phone_number ?? "");
     setSimIccid(device?.sim_iccid ?? "");
     setStatus(device?.status ?? "IN_STOCK");
@@ -98,6 +100,7 @@ export function DeviceFormDialog({ open, onOpenChange, device, onSaved }: Props)
       device_model_id: modelId || null,
       protocol: selectedModel?.protocol ?? null,
       serial_number: serialNumber.trim() || null,
+      vin_number: vinNumber.trim().toUpperCase() || null,
       phone_number: phoneNumber.trim() || null,
       sim_iccid: simIccid.trim() || null,
       status,
@@ -194,6 +197,16 @@ export function DeviceFormDialog({ open, onOpenChange, device, onSaved }: Props)
                 placeholder="Optional"
                 value={serialNumber}
                 onChange={(e) => setSerialNumber(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="d-vin">VIN number</Label>
+              <Input
+                id="d-vin"
+                placeholder="Optional 17-character VIN"
+                maxLength={17}
+                value={vinNumber}
+                onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
               />
             </div>
             <div className="space-y-2">

@@ -107,6 +107,7 @@ export interface GpsDevice {
   imei: string;
   name: string;
   serial_number: string | null;
+  vin_number: string | null;
   phone_number: string | null;
   sim_iccid: string | null;
   protocol: string | null;
