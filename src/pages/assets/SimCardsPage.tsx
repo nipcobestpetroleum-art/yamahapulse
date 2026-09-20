@@ -180,7 +180,8 @@ export default function SimCardsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <span className="text-sm text-muted-foreground">{s.carrier ?? "—"}</span>
+                      <p className="text-sm text-muted-foreground">{s.carrier ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">{s.plan_name ?? "No plan"}</p>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[s.status])}>

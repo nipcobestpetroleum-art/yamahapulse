@@ -1,0 +1,1 @@
+ALTER TABLE public.sim_cards ALTER COLUMN iccid DROP NOT NULL;

@@ -547,6 +547,7 @@ export interface SimCard {
   iccid: string;
   phone_number: string | null;
   carrier: string | null;
+  plan_name: string | null;
   plan_data_mb: number | null;
   status: SimCardStatus;
   expiry_date: string | null;

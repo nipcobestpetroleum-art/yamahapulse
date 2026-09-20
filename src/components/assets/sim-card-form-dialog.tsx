@@ -43,6 +43,7 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
   const [iccid, setIccid] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [carrier, setCarrier] = useState("");
+  const [planName, setPlanName] = useState("");
   const [planDataMb, setPlanDataMb] = useState("");
   const [status, setStatus] = useState<SimCardStatus>("ACTIVE");
   const [expiryDate, setExpiryDate] = useState("");
@@ -61,6 +62,7 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
     setIccid(simCard?.iccid ?? "");
     setPhoneNumber(simCard?.phone_number ?? "");
     setCarrier(simCard?.carrier ?? "");
+    setPlanName(simCard?.plan_name ?? "");
     setPlanDataMb(simCard?.plan_data_mb?.toString() ?? "");
     setStatus(simCard?.status ?? "ACTIVE");
     setExpiryDate(simCard?.expiry_date?.slice(0, 10) ?? "");
@@ -69,14 +71,15 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentOrg || !iccid.trim()) return;
+    if (!currentOrg || !phoneNumber.trim()) return;
     setSaving(true);
 
     const payload = {
       device_id: deviceId || null,
-      iccid: iccid.trim(),
-      phone_number: phoneNumber.trim() || null,
+      iccid: iccid.trim() || null,
+      phone_number: phoneNumber.trim(),
       carrier: carrier.trim() || null,
+      plan_name: planName.trim() || null,
       plan_data_mb: planDataMb ? parseInt(planDataMb, 10) : null,
       status,
       expiry_date: expiryDate || null,
@@ -120,11 +123,10 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="sim-iccid">ICCID *</Label>
+            <Label htmlFor="sim-iccid">ICCID</Label>
             <Input
               id="sim-iccid"
-              required
-              placeholder="89…"
+              placeholder="Optional — not supplied in this import"
               value={iccid}
               onChange={(e) => setIccid(e.target.value)}
             />
@@ -164,13 +166,12 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sim-data">Data plan (MB)</Label>
+              <Label htmlFor="sim-plan">Data plan</Label>
               <Input
-                id="sim-data"
-                type="number"
-                min="0"
-                value={planDataMb}
-                onChange={(e) => setPlanDataMb(e.target.value)}
+                id="sim-plan"
+                placeholder="e.g. Airtel Yearly Plan"
+                value={planName}
+                onChange={(e) => setPlanName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -214,7 +215,7 @@ export function SimCardFormDialog({ open, onOpenChange, simCard, onSaved }: Prop
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !iccid.trim()}>
+            <Button type="submit" disabled={saving || !phoneNumber.trim()}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {simCard ? "Save changes" : "Add SIM card"}
             </Button>

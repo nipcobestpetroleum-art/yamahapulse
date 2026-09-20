@@ -1,0 +1,1 @@
+ALTER TABLE public.sim_cards ADD COLUMN IF NOT EXISTS plan_name text;
