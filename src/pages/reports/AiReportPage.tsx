@@ -272,9 +272,21 @@ export default function AiReportPage() {
       return;
     }
     setEventTotal(todayEventsRes.count ?? 0);
+    let latest = (latestRes.data ?? null) as unknown as LatestPosition | null;
+    if (latest && !latest.address && Number.isFinite(latest.latitude) && Number.isFinite(latest.longitude)) {
+      const { data: geocode } = await supabase.functions.invoke("reverse-geocode", {
+        body: {
+          organizationId: currentOrg.id,
+          force: true,
+          positions: [{ deviceId, recordedAt: latest.recorded_at, latitude: latest.latitude, longitude: latest.longitude }],
+        },
+      });
+      const payload = geocode as { addresses?: Record<string, string>; placeNames?: Record<string, string> } | null;
+      latest = { ...latest, address: payload?.addresses?.[deviceId] ?? null, place_name: payload?.placeNames?.[deviceId] ?? null };
+    }
     setData({
       device,
-      latest: (latestRes.data ?? null) as unknown as LatestPosition | null,
+      latest,
       vehicle,
       openTrip: (openTripRes.data ?? null) as unknown as Trip | null,
       todayTrips: (todayTripsRes.data ?? []) as unknown as Trip[],
@@ -601,11 +613,9 @@ export default function AiReportPage() {
               </CardHeader>
               <CardContent>
                 <p className="truncate text-xl font-bold tracking-tight">
-                  {locationAddress ?? fmtCoords(data.latest)}
+                  {locationAddress ?? "Address unavailable"}
                 </p>
-                {locationAddress && (
-                  <p className="text-xs text-muted-foreground">{fmtCoords(data.latest)}</p>
-                )}
+                <p className="text-xs text-muted-foreground">Coordinates: {fmtCoords(data.latest)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatDistanceToNow(new Date(data.latest.recorded_at), { addSuffix: true })}
                   {(data.latest.speed ?? 0) <= 2
