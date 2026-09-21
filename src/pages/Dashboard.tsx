@@ -282,8 +282,8 @@ function FleetOperationsCard({ organizationId }: { organizationId: string }) {
                 const position = asset.position;
                 const status = getTelemetryStatus(position);
                 const coordinates = position ? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : null;
-                const placeName = position?.place_name ?? nearbyPlaceNames[asset.deviceId] ?? null;
-                const address = position?.address ?? geocodedAddresses[asset.deviceId] ?? null;
+                const placeName = nearbyPlaceNames[asset.deviceId] ?? position?.place_name ?? null;
+                const address = geocodedAddresses[asset.deviceId] ?? position?.address ?? null;
                 const location = position ? placeName ?? address ?? coordinates : "No location data";
                 return (
                   <Link key={asset.deviceId} to={`/fleet/live/${asset.deviceId}`} className="grid grid-cols-[1.4fr_1fr_.8fr_1.5fr_1.3fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-sm transition-colors last:border-0 hover:bg-primary/5">
