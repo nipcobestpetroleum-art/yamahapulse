@@ -20,7 +20,7 @@ type Expense = { id: string; organization_id: string; vehicle_id: string | null;
 type Vehicle = { id: string; name: string; registration_number: string };
 type RecurringExpense = { id: string; amount: number; tax_amount: number; category: string; description: string | null; vendor: string | null; payment_method: string | null; frequency: string; next_due_date: string; active: boolean; vehicle_id: string | null; vehicle?: { name: string; registration_number: string } | null };
 
-const categories = ["Fuel", "Maintenance", "Repairs", "Insurance", "Tolls", "Staff", "Licensing", "Utilities", "Other"];
+const categories = ["Vehicle Purchase", "Fuel", "Maintenance", "Repairs", "Insurance", "Tolls", "Staff", "Licensing", "Utilities", "Other"];
 const paymentMethods = ["Cash", "Bank transfer", "Card", "Mobile money", "Other"];
 const frequencies = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"];
 const blankForm = { amount: "", tax_amount: "0", expense_date: format(new Date(), "yyyy-MM-dd"), category: "Fuel", description: "", vendor: "", payment_method: "Cash", invoice_number: "", receipt_url: "", mileage_km: "", vehicle_id: "" };

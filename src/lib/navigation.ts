@@ -43,6 +43,7 @@ import {
   Signal,
   Siren,
   SlidersHorizontal,
+  TrendingUp,
   Users,
   Wallet,
   Wrench,
@@ -166,6 +167,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Wallet,
     roles: FINANCE_ROLES,
     items: [
+      { title: "Finance Dashboard", href: "/finance/dashboard", icon: TrendingUp, implemented: true },
       { title: "Expenses", href: "/expenses", icon: Coins, implemented: true },
       { title: "Bike Sales", href: "/finance/sales", icon: ShoppingCart, implemented: true },
       { title: "Hire-Purchase Contracts", href: "/finance/contracts", icon: FileText, implemented: true },

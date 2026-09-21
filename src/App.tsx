@@ -17,6 +17,7 @@ import ContractsPage from "./pages/finance/ContractsPage";
 import PaymentsPage from "./pages/finance/PaymentsPage";
 import AffiliatesPage from "./pages/finance/AffiliatesPage";
 import CollectionsPage from "./pages/finance/CollectionsPage";
+import FinanceDashboardPage from "./pages/finance/FinanceDashboardPage";
 import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
@@ -107,6 +108,7 @@ const App = () => (
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
+              <Route path="/finance/dashboard" element={<FinanceDashboardPage />} />
               <Route path="/finance/sales" element={<SalesPage />} />
               <Route path="/finance/contracts" element={<ContractsPage />} />
               <Route path="/finance/payments" element={<PaymentsPage />} />
