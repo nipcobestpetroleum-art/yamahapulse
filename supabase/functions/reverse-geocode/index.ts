@@ -148,18 +148,22 @@ serve(async (req) => {
 
     try {
       if (!address || !placeName) {
-        const mapboxUrl = new URL(`https://api.mapbox.com/search/geocode/v6/reverse/${position.longitude},${position.latitude}`);
+        const mapboxUrl = new URL("https://api.mapbox.com/search/geocode/v6/reverse");
+        mapboxUrl.searchParams.set("longitude", String(position.longitude));
+        mapboxUrl.searchParams.set("latitude", String(position.latitude));
         mapboxUrl.searchParams.set("access_token", mapboxToken);
         mapboxUrl.searchParams.set("language", "en");
         mapboxUrl.searchParams.set("limit", "5");
         const response = await fetch(mapboxUrl);
-        const result = (await response.json()) as { features?: Array<{ place_name?: string; text?: string }> };
+        const responseText = await response.text();
+        let result: { features?: Array<{ properties?: { full_address?: string; name?: string }; place_name?: string; text?: string }> } = {};
+        try { result = JSON.parse(responseText) as typeof result; } catch { /* Mapbox returned a non-JSON error body. */ }
         const feature = result.features?.[0];
-        address = address ?? feature?.place_name;
-        placeName = placeName ?? feature?.text;
+        address = address ?? feature?.properties?.full_address ?? feature?.place_name;
+        placeName = placeName ?? feature?.properties?.name ?? feature?.text;
         if (!response.ok || (!address && !placeName)) {
           failures += 1;
-          console.warn("[reverse-geocode] Mapbox did not return a location", { deviceId: position.deviceId, status: response.status });
+          console.warn("[reverse-geocode] Mapbox did not return a location", { deviceId: position.deviceId, status: response.status, body: responseText.slice(0, 300) });
         }
       }
 
