@@ -66,10 +66,10 @@ serve(async (req) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  const googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
-  if (!googleApiKey) {
-    console.warn("[reverse-geocode] GOOGLE_MAPS_API_KEY is not configured");
-    return jsonResponse({ error: "Google reverse geocoding is not configured", code: "GOOGLE_MAPS_NOT_CONFIGURED" }, 503);
+  const mapboxToken = Deno.env.get("MAPBOX_SECRET_TOKEN")?.trim() ?? "";
+  if (!/^sk\.[A-Za-z0-9._-]+$/.test(mapboxToken)) {
+    console.warn("[reverse-geocode] MAPBOX_SECRET_TOKEN is not configured");
+    return jsonResponse({ error: "Mapbox reverse geocoding is not configured", code: "MAPBOX_NOT_CONFIGURED" }, 503);
   }
 
   let body: { organizationId?: unknown; positions?: unknown; mode?: unknown };
@@ -147,50 +147,19 @@ serve(async (req) => {
     let placeName = forceRefresh ? undefined : current.place_name ?? undefined;
 
     try {
-      if (!address) {
-        const geocodeUrl = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-        geocodeUrl.searchParams.set("latlng", `${position.latitude},${position.longitude}`);
-        geocodeUrl.searchParams.set("key", googleApiKey);
-        const response = await fetch(geocodeUrl);
-        const result = (await response.json()) as GoogleGeocodingResponse;
-        address = result.status === "OK" ? result.results?.[0]?.formatted_address : undefined;
-        if (!response.ok || !address) {
+      if (!address || !placeName) {
+        const mapboxUrl = new URL(`https://api.mapbox.com/search/geocode/v6/reverse/${position.longitude},${position.latitude}`);
+        mapboxUrl.searchParams.set("access_token", mapboxToken);
+        mapboxUrl.searchParams.set("language", "en");
+        mapboxUrl.searchParams.set("limit", "5");
+        const response = await fetch(mapboxUrl);
+        const result = (await response.json()) as { features?: Array<{ place_name?: string; text?: string }> };
+        const feature = result.features?.[0];
+        address = address ?? feature?.place_name;
+        placeName = placeName ?? feature?.text;
+        if (!response.ok || (!address && !placeName)) {
           failures += 1;
-          console.warn("[reverse-geocode] Google did not return an address", {
-            deviceId: position.deviceId,
-            status: result.status,
-            error: result.error_message,
-          });
-        }
-      }
-
-      if (!placeName) {
-        const placesResponse = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": googleApiKey,
-            "X-Goog-FieldMask": "places.displayName,places.formattedAddress",
-          },
-          body: JSON.stringify({
-            maxResultCount: 5,
-            rankPreference: "DISTANCE",
-            locationRestriction: {
-              circle: {
-                center: { latitude: position.latitude, longitude: position.longitude },
-                radius: 100,
-              },
-            },
-          }),
-        });
-        const result = (await placesResponse.json()) as GooglePlacesResponse;
-        placeName = result.places?.[0]?.displayName?.text;
-        if (!placesResponse.ok || !placeName) {
-          console.warn("[reverse-geocode] Google did not return a nearby place", {
-            deviceId: position.deviceId,
-            status: placesResponse.status,
-            error: result.error?.message,
-          });
+          console.warn("[reverse-geocode] Mapbox did not return a location", { deviceId: position.deviceId, status: response.status });
         }
       }
 
@@ -228,7 +197,7 @@ serve(async (req) => {
       }
     } catch (error) {
       failures += 1;
-      console.error("[reverse-geocode] Google request failed", { deviceId: position.deviceId, error });
+      console.error("[reverse-geocode] Mapbox request failed", { deviceId: position.deviceId, error });
     }
   }
 

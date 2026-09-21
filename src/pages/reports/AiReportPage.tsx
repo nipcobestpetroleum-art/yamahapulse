@@ -273,7 +273,7 @@ export default function AiReportPage() {
     }
     setEventTotal(todayEventsRes.count ?? 0);
     let latest = (latestRes.data ?? null) as unknown as LatestPosition | null;
-    if (latest && !latest.address && Number.isFinite(latest.latitude) && Number.isFinite(latest.longitude)) {
+    if (latest && Number.isFinite(latest.latitude) && Number.isFinite(latest.longitude)) {
       const { data: geocode } = await supabase.functions.invoke("reverse-geocode", {
         body: {
           organizationId: currentOrg.id,
