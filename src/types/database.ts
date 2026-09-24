@@ -155,6 +155,18 @@ export interface Driver {
   id: string;
   organization_id: string;
   name: string;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  okada_number?: string | null;
+  state_of_origin?: string | null;
+  home_town?: string | null;
+  local_government?: string | null;
+  nin?: string | null;
+  bvn?: string | null;
+  passport_photo_path?: string | null;
+  driver_picture_path?: string | null;
+  signature_path?: string | null;
   phone: string | null;
   email: string | null;
   license_number: string | null;

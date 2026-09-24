@@ -2,6 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { LatestPosition } from "@/types/database";
 
+function samePositions(
+  a: Record<string, LatestPosition>,
+  b: Record<string, LatestPosition>,
+): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const key of keys) {
+    const x = a[key];
+    const y = b[key];
+    if (!y) return false;
+    if (x.recorded_at !== y.recorded_at || x.updated_at !== y.updated_at) return false;
+    if (x.latitude !== y.latitude || x.longitude !== y.longitude) return false;
+  }
+  return true;
+}
+
 interface UseLivePositionsResult {
   positionsByDeviceId: Record<string, LatestPosition>;
   loading: boolean;
@@ -19,10 +35,13 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
   const [realtimeStatus, setRealtimeStatus] = useState<"CONNECTING" | "CONNECTED" | "DEGRADED">("CONNECTING");
 
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchLatest = useCallback(async () => {
     if (!organizationId) return;
-    setLoading(true);
+    // Only show the loading state on the very first fetch; background polling
+    // refreshes silently so pages do not flash/refresh every few seconds.
+    if (!hasLoadedRef.current) setLoading(true);
     setError(null);
 
     const { data, error: fetchError } = await supabase
@@ -31,7 +50,7 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
       .eq("organization_id", organizationId)
       .order("updated_at", { ascending: false });
 
-    setLoading(false);
+    if (!hasLoadedRef.current) setLoading(false);
 
     if (fetchError) {
       setError(fetchError.message);
@@ -42,7 +61,12 @@ export function useLivePositions(organizationId: string | null): UseLivePosition
     (data ?? []).forEach((p) => {
       map[p.device_id] = p as unknown as LatestPosition;
     });
-    setPositionsByDeviceId(map);
+    setPositionsByDeviceId((prev) => {
+      // Skip the state update when nothing changed to avoid needless re-renders.
+      if (hasLoadedRef.current && samePositions(prev, map)) return prev;
+      hasLoadedRef.current = true;
+      return map;
+    });
   }, [organizationId]);
 
   useEffect(() => {
