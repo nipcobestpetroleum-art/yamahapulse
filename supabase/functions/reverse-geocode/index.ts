@@ -153,7 +153,6 @@ serve(async (req) => {
         mapboxUrl.searchParams.set("latitude", String(position.latitude));
         mapboxUrl.searchParams.set("access_token", mapboxToken);
         mapboxUrl.searchParams.set("language", "en");
-        mapboxUrl.searchParams.set("limit", "5");
         const response = await fetch(mapboxUrl);
         const responseText = await response.text();
         let result: { features?: Array<{ properties?: { full_address?: string; name?: string }; place_name?: string; text?: string }> } = {};
