@@ -80,27 +80,34 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
       element.type = "button";
       element.title = spec.title;
       const isBike = spec.icon === "bike";
-      element.style.width = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
-      element.style.height = isBike ? "52px" : `${(spec.scale ?? 8) * 2}px`;
-      element.style.borderRadius = isBike ? "14px" : "9999px";
-      element.style.background = isBike ? "transparent" : spec.color ?? "#6366f1";
-      element.style.border = isBike ? (spec.id === selectedMarkerId ? "3px solid white" : "0") : spec.id === selectedMarkerId ? "3px solid white" : "2px solid white";
-      element.style.boxShadow = isBike ? "none" : "0 2px 8px rgba(15,23,42,.35)";
+      const selected = spec.id === selectedMarkerId;
       element.style.display = "flex";
       element.style.alignItems = "center";
       element.style.justifyContent = "center";
-      element.style.overflow = "hidden";
       if (isBike) {
-        const image = document.createElement("img");
-        image.src = "/assets/fleet-motorcycle.png";
-        image.alt = "Motorcycle location";
-        image.draggable = false;
-        image.style.width = "100%";
-        image.style.height = "100%";
-        image.style.objectFit = "contain";
-        image.style.mixBlendMode = "multiply";
-        image.style.transform = `rotate(${(spec.bearing ?? 90) - 90}deg)`;
-        element.appendChild(image);
+        // 3D tracker ball: green while reporting within 24h, grey when stale beyond 24h.
+        const size = selected ? 26 : 20;
+        const base = spec.color ?? "#22c55e";
+        element.style.width = `${size}px`;
+        element.style.height = `${size}px`;
+        element.style.borderRadius = "9999px";
+        element.style.padding = "0";
+        element.style.border = "1.5px solid rgba(255,255,255,.92)";
+        element.style.cursor = "pointer";
+        element.style.background =
+          "radial-gradient(circle at 30% 26%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.45) 15%, rgba(255,255,255,0) 38%)," +
+          `radial-gradient(circle at 68% 74%, ${base} 0%, color-mix(in srgb, ${base} 74%, #000) 58%, color-mix(in srgb, ${base} 48%, #000) 100%)`;
+        element.style.boxShadow = selected
+          ? "0 0 0 5px rgba(255,255,255,.35), 0 5px 10px rgba(2,6,23,.5)"
+          : "0 4px 9px rgba(2,6,23,.5)";
+      } else {
+        element.style.width = `${(spec.scale ?? 8) * 2}px`;
+        element.style.height = `${(spec.scale ?? 8) * 2}px`;
+        element.style.borderRadius = "9999px";
+        element.style.background = spec.color ?? "#6366f1";
+        element.style.border = selected ? "3px solid white" : "2px solid white";
+        element.style.boxShadow = "0 2px 8px rgba(15,23,42,.35)";
+        element.style.overflow = "hidden";
       }
       element.addEventListener("click", (event) => {
         event.stopPropagation();

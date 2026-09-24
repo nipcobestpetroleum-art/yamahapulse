@@ -42,12 +42,3 @@ export interface ViewRequest {
   zoom?: number;
   nonce: number;
 }
-
-export const STATUS_MARKER_COLORS: Record<string, string> = {
-  MOVING: "#10b981",
-  IDLING: "#38bdf8",
-  STOPPED: "#f59e0b",
-  OFFLINE: "#94a3b8",
-  NO_DATA: "#f43f5e",
-  UNKNOWN: "#a78bfa",
-};

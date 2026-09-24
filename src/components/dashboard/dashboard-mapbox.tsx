@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PlatformMap } from "@/components/maps/platform-map";
 import { supabase } from "@/integrations/supabase/client";
 import { VehicleMapDetailsDialog, type VehicleMapDetails } from "@/components/vehicles/vehicle-map-details-dialog";
-import { getTelemetryStatus, TELEMETRY_STATUS_LABELS } from "@/lib/telemetry-status";
+import { getTelemetryStatus, getTrackerBallColor, TELEMETRY_STATUS_LABELS } from "@/lib/telemetry-status";
 import type { LatestPosition } from "@/types/database";
 import type { MapMarkerSpec } from "@/components/mapstudio/types";
 
@@ -26,7 +26,7 @@ export function DashboardMapbox({ assets }: { assets: Asset[] }) {
     });
   }, [positioned, selectedDeviceId, selectedLocation?.key]);
 
-  const markers = useMemo<MapMarkerSpec[]>(() => positioned.map((asset) => { const position = asset.position!; const status = getTelemetryStatus(position); return { id: asset.deviceId, lat: position.latitude, lng: position.longitude, title: asset.vehicleName, icon: "bike", color: status === "MOVING" ? "#10b981" : status === "OFFLINE" ? "#94a3b8" : "#f59e0b", snippet: [asset.driver?.name ? `Driver: ${asset.driver.name}` : "No driver assigned", `Status: ${TELEMETRY_STATUS_LABELS[status]}`, `GPS: ${new Date(position.recorded_at).toLocaleString()}`, position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`] }; }), [positioned]);
+  const markers = useMemo<MapMarkerSpec[]>(() => positioned.map((asset) => { const position = asset.position!; const status = getTelemetryStatus(position); return { id: asset.deviceId, lat: position.latitude, lng: position.longitude, title: asset.vehicleName, icon: "bike", color: getTrackerBallColor(position), snippet: [asset.driver?.name ? `Driver: ${asset.driver.name}` : "No driver assigned", `Status: ${TELEMETRY_STATUS_LABELS[status]}`, `GPS: ${new Date(position.recorded_at).toLocaleString()}`, position.address ?? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`] }; }), [positioned]);
   const selectedAsset = positioned.find((asset) => asset.deviceId === selectedDeviceId) ?? null;
   const selectedPosition = selectedAsset?.position && selectedLocation?.key.startsWith(`${selectedDeviceId}:${selectedAsset.position.recorded_at}:`) ? { ...selectedAsset.position, address: selectedLocation.address ?? selectedAsset.position.address, place_name: selectedLocation.placeName ?? selectedAsset.position.place_name } : selectedAsset?.position;
   const selectedVehicle: VehicleMapDetails | null = selectedPosition ? { vehicleName: selectedAsset!.vehicleName, registration: selectedAsset!.registration, deviceName: selectedAsset!.deviceName, imei: selectedAsset!.imei, position: selectedPosition, driver: selectedAsset!.driver ?? null } : null;

@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
+import { getTelemetryStatus, getTrackerBallColor, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
 import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
-import { STATUS_MARKER_COLORS } from "@/components/mapstudio/types";
 
 interface FleetPanelProps {
   vehicles: StudioVehicle[];
@@ -46,7 +45,7 @@ export function FleetPanel({ vehicles, selectedDeviceId, onSelectDevice, setOver
         lng: position.longitude,
         title: vehicle.vehicleName,
         icon: "bike" as const,
-        color: STATUS_MARKER_COLORS[status],
+        color: getTrackerBallColor(position),
         snippet: [
           vehicle.registration ?? "Unregistered",
           `${TELEMETRY_STATUS_LABELS[status]}${position.speed != null ? ` · ${Math.round(position.speed)} km/h` : ""}`,

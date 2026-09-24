@@ -40,3 +40,18 @@ export const TELEMETRY_STATUS_STYLES: Record<TelemetryStatus, string> = {
   NO_DATA: "border-rose-500/25 bg-rose-500/10 text-rose-300",
   UNKNOWN: "border-violet-500/25 bg-violet-500/10 text-violet-400",
 };
+
+/** Ball marker colors: green while the tracker reported within 24h, grey once stale beyond 24h. */
+export const TRACKER_BALL_LIVE_COLOR = "#22c55e";
+export const TRACKER_BALL_STALE_COLOR = "#94a3b8";
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+export function getTrackerBallColor(
+  position: Pick<LatestPosition, "recorded_at"> | null | undefined,
+  now = Date.now(),
+): string {
+  if (!position) return TRACKER_BALL_STALE_COLOR;
+  const timestamp = new Date(position.recorded_at).getTime();
+  if (!Number.isFinite(timestamp)) return TRACKER_BALL_STALE_COLOR;
+  return now - timestamp > STALE_AFTER_MS ? TRACKER_BALL_STALE_COLOR : TRACKER_BALL_LIVE_COLOR;
+}
