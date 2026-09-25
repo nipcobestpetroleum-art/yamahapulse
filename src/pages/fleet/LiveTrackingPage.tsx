@@ -340,8 +340,9 @@ export default function LiveTrackingPage() {
           vehicles={liveMapVehicles}
           selectedKey={effectiveSelectedKey}
           onSelectVehicle={(k) => {
-            setSelectedKey(k);
-            navigate(`/fleet/live/${k}`);
+            const vehicleKey = k.split(":")[0];
+            setSelectedKey(vehicleKey);
+            navigate(`/fleet/live/${vehicleKey}`);
           }}
         />
 

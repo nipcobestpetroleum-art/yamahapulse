@@ -69,9 +69,11 @@ export async function sendAssignedAssetMovementEmails(
     }
 
     const safeLabel = escapeText(vehicleLabel);
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    const safeMapUrl = escapeText(mapUrl);
     const subject = `YamahaPulse movement: ${vehicleLabel}`;
-    const text = `${vehicleLabel} moved at ${recordedAt}. Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}.`;
-    const html = `<p><strong>${safeLabel}</strong> movement detected.</p><p>Time: ${escapeText(recordedAt)}</p><p>Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</p>`;
+    const text = `${vehicleLabel} movement detected at ${recordedAt}. Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}. Open in Google Maps: ${mapUrl}`;
+    const html = `<div style="margin:0;background:#f4f7fb;padding:32px 16px;font-family:Arial,sans-serif;color:#12233f"><div style="margin:0 auto;max-width:560px;overflow:hidden;border:1px solid #d9e2ef;border-radius:20px;background:#ffffff;box-shadow:0 12px 30px rgba(18,35,63,.08)"><div style="background:#102a43;padding:26px 28px;color:#ffffff"><div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#9fe8ca">YamahaPulse · Live movement</div><h1 style="margin:10px 0 0;font-size:24px;line-height:1.2">${safeLabel}</h1></div><div style="padding:28px"><p style="margin:0 0 20px;font-size:16px;line-height:1.5">A new movement point has been recorded on the trail.</p><div style="border:1px solid #e2eaf2;border-radius:14px;background:#f8fbfe;padding:16px"><div style="color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.8px">Recorded</div><div style="margin-top:5px;font-size:15px;font-weight:700">${escapeText(recordedAt)}</div><div style="margin-top:14px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.8px">Coordinates</div><div style="margin-top:5px;font-family:monospace;font-size:14px">${latitude.toFixed(6)}, ${longitude.toFixed(6)}</div></div><a href="${safeMapUrl}" style="display:inline-block;margin-top:22px;border-radius:10px;background:#0f9d75;padding:13px 18px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none">Open location in Google Maps →</a><p style="margin:22px 0 0;color:#64748b;font-size:12px;line-height:1.5">This point is also available in the Live Tracking trail with its date, bike, speed, and ignition logs.</p></div><div style="border-top:1px solid #e2eaf2;padding:16px 28px;color:#64748b;font-size:11px">YamahaPulse fleet monitoring · Automated notification</div></div></div>`;
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
