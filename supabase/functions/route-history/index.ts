@@ -23,16 +23,22 @@ function validPoint(point: Point) {
     && (point.latitude !== 0 || point.longitude !== 0);
 }
 
-async function snapChunk(points: Point[], apiKey: string): Promise<Point[]> {
-  const path = points.map((point) => `${point.latitude},${point.longitude}`).join("|");
-  const url = new URL("https://roads.googleapis.com/v1/snapToRoads");
-  url.searchParams.set("path", path);
-  url.searchParams.set("interpolate", "true");
-  url.searchParams.set("key", apiKey);
+async function snapChunk(points: Point[], accessToken: string): Promise<Point[]> {
+  const coordinates = points.map((point) => `${point.longitude},${point.latitude}`).join(";");
+  const url = new URL(`https://api.mapbox.com/matching/v5/mapbox/driving/${coordinates}`);
+  url.searchParams.set("geometries", "geojson");
+  url.searchParams.set("overview", "full");
+  url.searchParams.set("tidy", "true");
+  url.searchParams.set("access_token", accessToken);
   const result = await fetch(url);
-  if (!result.ok) throw new Error(`Google Roads API returned ${result.status}`);
+  if (!result.ok) throw new Error(`Mapbox Map Matching API returned ${result.status}`);
   const body = await result.json();
-  return (body.snappedPoints ?? []).map((item: { location?: Point }) => item.location).filter(validPoint);
+  const geometry = body.matchings?.[0]?.geometry?.coordinates;
+  if (!Array.isArray(geometry)) return [];
+  return geometry.map((coordinate: unknown) => {
+    if (!Array.isArray(coordinate) || coordinate.length < 2) return null;
+    return { latitude: Number(coordinate[1]), longitude: Number(coordinate[0]) };
+  }).filter((point: Point | null): point is Point => point !== null && validPoint(point));
 }
 
 serve(async (req) => {
@@ -49,8 +55,8 @@ serve(async (req) => {
   const { error: authError } = await authClient.auth.getUser();
   if (authError) return response({ error: "Unauthorized" }, 401);
 
-  const apiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
-  if (!apiKey) return response({ error: "Road matching is not configured" }, 503);
+  const accessToken = Deno.env.get("MAPBOX_SECRET_TOKEN")?.trim();
+  if (!accessToken) return response({ error: "Road matching is not configured" }, 503);
 
   let body: { tracks?: Track[] };
   try { body = await req.json(); } catch { return response({ error: "Invalid JSON" }, 400); }
@@ -67,13 +73,13 @@ serve(async (req) => {
       const chunk = points.slice(start, start + 100);
       if (chunk.length < 2) break;
       try {
-        const matched = await snapChunk(chunk, apiKey);
+        const matched = await snapChunk(chunk, accessToken);
         for (const point of matched) {
           const last = snapped[snapped.length - 1];
           if (!last || last.latitude !== point.latitude || last.longitude !== point.longitude) snapped.push(point);
         }
       } catch {
-        // Keep the raw GPS trail for this chunk if Roads API is unavailable.
+        // Keep the raw GPS trail for this chunk if Mapbox matching is unavailable.
         for (const point of chunk) {
           const last = snapped[snapped.length - 1];
           if (!last || last.latitude !== point.latitude || last.longitude !== point.longitude) snapped.push(point);

@@ -38,27 +38,35 @@ export async function sendAssignedAssetMovementEmails(
   const { data: accessRows, error: accessError } = vehicleId
     ? await accessQuery.eq("vehicle_id", vehicleId)
     : await accessQuery;
-  if (accessError || !accessRows?.length) return;
+  if (accessError) return;
 
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (!resendApiKey) return;
-  const userIds = [...new Set(accessRows.map((row: { user_id: string }) => row.user_id))];
+  const recipients = new Map<string, string>();
+  for (const row of accessRows as { user_id: string }[]) {
+    const { data: authUser } = await supabase.auth.admin.getUserById(row.user_id);
+    if (authUser.user?.email) recipients.set(authUser.user.email.toLowerCase(), row.user_id);
+  }
+  const { data: organization } = await supabase.from("organizations").select("alert_emails").eq("id", organizationId).maybeSingle();
+  for (const email of (organization?.alert_emails ?? []) as string[]) {
+    if (typeof email === "string" && email.includes("@")) recipients.set(email.toLowerCase(), "");
+  }
+  if (recipients.size === 0) return;
   const { data: vehicle } = vehicleId
     ? await supabase.from("vehicles").select("name,registration_number").eq("id", vehicleId).maybeSingle()
     : { data: null };
   const vehicleLabel = vehicle?.registration_number ? `${vehicle.name} (${vehicle.registration_number})` : vehicle?.name ?? "Assigned vehicle";
 
-  for (const userId of userIds) {
-    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-    const email = authUser.user?.email;
-    if (!email) continue;
-    const { error: deliveryError } = await supabase.from("asset_movement_email_deliveries").insert({
-      organization_id: organizationId,
-      device_id: deviceId,
-      user_id: userId,
-      recorded_at: recordedAt,
-    });
-    if (deliveryError) continue;
+  for (const [email, userId] of recipients) {
+    if (userId) {
+      const { error: deliveryError } = await supabase.from("asset_movement_email_deliveries").insert({
+        organization_id: organizationId,
+        device_id: deviceId,
+        user_id: userId,
+        recorded_at: recordedAt,
+      });
+      if (deliveryError) continue;
+    }
 
     const safeLabel = escapeText(vehicleLabel);
     const subject = `YamahaPulse movement: ${vehicleLabel}`;
@@ -69,7 +77,7 @@ export async function sendAssignedAssetMovementEmails(
       headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: "YamahaPulse Alerts <YamahaAlerts@ipmanpay.cloud>", to: [email], subject, html, text }),
     });
-    if (!response.ok) console.error("[asset-movement-email] email delivery failed", { userId, deviceId, status: response.status });
+    if (!response.ok) console.error("[asset-movement-email] email delivery failed", { email, deviceId, status: response.status });
   }
 }
 
@@ -101,7 +109,15 @@ export async function sendAssignedAssetEventNotifications(
   const { data: accessRows, error: accessError } = await accessQuery;
   if (accessError || !accessRows?.length) return;
 
-  const userIds = [...new Set(accessRows.map((row: { user_id: string }) => row.user_id))];
+  const recipients = new Map<string, string>();
+  for (const row of accessRows as { user_id: string }[]) {
+    const { data: authUser } = await supabase.auth.admin.getUserById(row.user_id);
+    if (authUser.user?.email) recipients.set(authUser.user.email.toLowerCase(), row.user_id);
+  }
+  const { data: organization } = await supabase.from("organizations").select("alert_emails").eq("id", organizationId).maybeSingle();
+  for (const email of (organization?.alert_emails ?? []) as string[]) {
+    if (typeof email === "string" && email.includes("@")) recipients.set(email.toLowerCase(), "");
+  }
   const { data: vehicle } = vehicleId
     ? await supabase.from("vehicles").select("name,registration_number").eq("id", vehicleId).maybeSingle()
     : { data: null };
@@ -110,9 +126,8 @@ export async function sendAssignedAssetEventNotifications(
   const ebulkUsername = Deno.env.get("EBULKSMS_USERNAME");
   const ebulkApiKey = Deno.env.get("EBULKSMS_API_KEY");
 
-  for (const userId of userIds) {
-    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-    const { data: profile } = await supabase.from("profiles").select("phone").eq("id", userId).maybeSingle();
+  for (const [email, userId] of recipients) {
+    const { data: profile } = userId ? await supabase.from("profiles").select("phone").eq("id", userId).maybeSingle() : { data: null };
     const phone = typeof profile?.phone === "string" ? normalizePhone(profile.phone) : null;
 
     for (const event of events as { id: string; type: string; severity: string; message: string | null; created_at: string }[]) {
@@ -120,11 +135,11 @@ export async function sendAssignedAssetEventNotifications(
       const text = `${event.severity.toUpperCase()} alert for ${vehicleLabel}: ${event.message ?? event.type}. Time: ${event.created_at}.`;
       const html = `<p><strong>${escapeText(event.severity.toUpperCase())} alert</strong> for ${escapeText(vehicleLabel)}</p><p>${escapeText(event.message ?? event.type)}</p><p>Time: ${escapeText(event.created_at)}</p>`;
 
-      if (resendApiKey && authUser.user?.email) {
-        const { error: deliveryError } = await supabase.from("asset_alert_deliveries").insert({ event_id: event.id, user_id: userId, channel: "EMAIL" });
-        if (!deliveryError) {
-          const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "YamahaPulse Alerts <YamahaAlerts@ipmanpay.cloud>", to: [authUser.user.email], subject, html, text }) });
-          if (!response.ok) console.error("[ingest] assigned alert email failed", { userId, eventId: event.id, status: response.status });
+      if (resendApiKey && email) {
+        const deliveryResult = userId ? await supabase.from("asset_alert_deliveries").insert({ event_id: event.id, user_id: userId, channel: "EMAIL" }) : { error: null };
+        if (!deliveryResult.error) {
+          const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: "YamahaPulse Alerts <YamahaAlerts@ipmanpay.cloud>", to: [email], subject, html, text }) });
+          if (!response.ok) console.error("[ingest] assigned alert email failed", { email, eventId: event.id, status: response.status });
         }
       }
 
