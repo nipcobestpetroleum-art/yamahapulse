@@ -112,7 +112,7 @@ export default function DevicesPage() {
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     if (debouncedSearch.trim()) {
       const q = debouncedSearch.trim().replace(/[,%]/g, "");
-      query = query.or(`name.ilike.%${q}%,imei.ilike.%${q}%`);
+      query = query.or(`name.ilike.%${q}%,imei.ilike.%${q}%,vin_number.ilike.%${q}%`);
     }
 
     const from = (page - 1) * PAGE_SIZE;
@@ -271,7 +271,7 @@ export default function DevicesPage() {
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search name or IMEI…"
+            placeholder="Search name, IMEI, or VIN…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="bg-card/60 pl-9"
@@ -334,6 +334,7 @@ export default function DevicesPage() {
                   <TableHead className="hidden md:table-cell">Model</TableHead>
                   <TableHead className="hidden lg:table-cell">Protocol</TableHead>
                   <TableHead className="hidden md:table-cell">Vehicle</TableHead>
+                  <TableHead className="hidden xl:table-cell">VIN</TableHead>
                   <TableHead>Device status</TableHead>
                   <TableHead className="hidden lg:table-cell">GNSS</TableHead>
                   <TableHead className="hidden xl:table-cell">Added</TableHead>
@@ -369,6 +370,11 @@ export default function DevicesPage() {
                     <TableCell className="hidden md:table-cell">
                       <span className="text-sm text-muted-foreground">
                         {d.vehicle_name ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {d.vin_number ?? "—"}
                       </span>
                     </TableCell>
                     <TableCell>
