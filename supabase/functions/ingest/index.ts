@@ -407,7 +407,8 @@ serve(async (req) => {
 
   if (!data.ident) return corsResponse({ error: "Missing device identifier (imei)" }, 400);
   const location = await resolveLocation(data, supabase);
-  await updateGnssStatus(supabase, data.ident, data.recorded_at, data.satellites, location?.source ?? null);
+  // Test pings must not change GNSS status — only real device telemetry does.
+  if (!isTest) await updateGnssStatus(supabase, data.ident, data.recorded_at, data.satellites, location?.source ?? null);
   if (!location) {
     return corsResponse({ error: "No usable location source or previous position" }, 400);
   }
