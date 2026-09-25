@@ -23,6 +23,7 @@ import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
 import AssetDetailPage from "./pages/fleet/AssetDetailPage";
+import TrailHistoryPage from "./pages/fleet/TrailHistoryPage";
 import BatteryMonitoringPage from "./pages/assets/BatteryMonitoringPage";
 import DriversPage from "./pages/fleet/DriversPage";
 import DriverCompliancePage from "./pages/fleet/DriverCompliancePage";
@@ -126,6 +127,7 @@ const App = () => (
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
               <Route path="/fleet/live/:deviceId" element={<AssetDetailPage />} />
+              <Route path="/fleet/trail" element={<TrailHistoryPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />
               <Route path="/fleet/driver-compliance" element={<DriverCompliancePage />} />
               <Route path="/fleet/trips" element={<TripsPage />} />

@@ -81,6 +81,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Car,
     items: [
       { title: "Live Tracking", href: "/fleet/live", icon: Radar, implemented: true },
+      { title: "Raw Telemetry Trail", href: "/fleet/trail", icon: Route, implemented: true },
       { title: "Vehicles", href: "/vehicles", icon: Car, implemented: true },
       { title: "Device Management", href: "/devices", icon: Cpu, implemented: true },
       { title: "Drivers", href: "/fleet/drivers", icon: Users, implemented: true },
