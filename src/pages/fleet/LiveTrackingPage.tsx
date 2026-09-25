@@ -3,10 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Activity,
+  CalendarDays,
   Car,
+  CircleDot,
   Cpu,
+  Filter,
   LocateFixed,
+  MapPin,
   PauseCircle,
+  Route,
   Search,
   Signal,
   Volume2,
@@ -48,8 +53,26 @@ interface AssignedDevice {
   vehicleStatus: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | "DECOMMISSIONED";
 }
 
+interface TrailLog {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+  speed: number | null;
+  ignition: boolean | null;
+}
+
 function formatUpdated(ts: string) {
   return format(new Date(ts), "dd MMM yyyy, HH:mm:ss");
+}
+
+function dateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function nextDateInputValue(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return dateInputValue(date);
 }
 
 function isOffline(latestUpdatedAt: string | null) {
@@ -68,11 +91,15 @@ export default function LiveTrackingPage() {
 
   const [search, setSearch] = useReactState("");
   const [statusFilter, setStatusFilter] = useReactState<TelemetryStatus | "ALL" | "ONLINE">(initialStatus);
+  const [selectedBike, setSelectedBike] = useReactState("ALL");
+  const [fromDate, setFromDate] = useReactState(dateInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000)));
+  const [toDate, setToDate] = useReactState(dateInputValue(new Date()));
   const [selectedKey, setSelectedKey] = useReactState<string | null>(null);
 
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
   const [assignedError, setAssignedError] = useReactState<string | null>(null);
   const [trails, setTrails] = useReactState<Record<string, [number, number][]>>({});
+  const [trailLogs, setTrailLogs] = useReactState<Record<string, TrailLog[]>>({});
   const [roadTrails, setRoadTrails] = useReactState<Record<string, [number, number][]>>({});
 
   const {
@@ -147,34 +174,39 @@ export default function LiveTrackingPage() {
   }, [assigned]);
 
   useEffect(() => {
-    if (!orgId || vehiclesToTrack.length === 0) {
+    if (!orgId || vehiclesToTrack.length === 0 || fromDate > toDate) {
       setTrails({});
+      setTrailLogs({});
       return;
     }
 
     let cancelled = false;
     const deviceIds = vehiclesToTrack.map((vehicle) => vehicle.deviceId);
-    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const until = nextDateInputValue(toDate);
     supabase
       .from("positions")
-      .select("device_id,latitude,longitude,recorded_at")
+      .select("device_id,latitude,longitude,recorded_at,speed,ignition")
       .eq("organization_id", orgId)
       .in("device_id", deviceIds)
-      .gte("recorded_at", since)
+      .gte("recorded_at", `${fromDate}T00:00:00.000Z`)
+      .lt("recorded_at", `${until}T00:00:00.000Z`)
       .order("recorded_at", { ascending: true })
-      .limit(3000)
+      .limit(5000)
       .then(({ data, error }) => {
         if (cancelled || error) return;
         const next: Record<string, [number, number][]> = {};
+        const logs: Record<string, TrailLog[]> = {};
         for (const row of data ?? []) {
           if (!Number.isFinite(row.latitude) || !Number.isFinite(row.longitude) || (row.latitude === 0 && row.longitude === 0)) continue;
           (next[row.device_id] ??= []).push([row.latitude, row.longitude] as [number, number]);
+          (logs[row.device_id] ??= []).push({ latitude: row.latitude, longitude: row.longitude, recorded_at: row.recorded_at, speed: row.speed, ignition: row.ignition });
         }
         setTrails(next);
+        setTrailLogs(logs);
       });
 
     return () => { cancelled = true; };
-  }, [orgId, vehiclesToTrack]);
+  }, [orgId, vehiclesToTrack, fromDate, toDate]);
 
   useEffect(() => {
     setTrails((current) => {
@@ -238,9 +270,10 @@ export default function LiveTrackingPage() {
         .some((value) => value.toLowerCase().includes(q));
       const currentStatus = statusByDevice[v.deviceId];
       const matchesStatus = statusFilter === "ALL" || (statusFilter === "ONLINE" ? ["MOVING", "IDLING", "STOPPED"].includes(currentStatus) : currentStatus === statusFilter);
-      return matchesSearch && matchesStatus;
+      const matchesBike = selectedBike === "ALL" || v.deviceId === selectedBike;
+      return matchesSearch && matchesStatus && matchesBike;
     });
-  }, [vehiclesToTrack, search, statusFilter, statusByDevice]);
+  }, [vehiclesToTrack, search, statusFilter, statusByDevice, selectedBike]);
 
   const liveMapVehicles = useMemo<LiveMapVehicle[]>(() => {
     return filtered
@@ -279,6 +312,7 @@ export default function LiveTrackingPage() {
   }, [liveMapVehicles, selectedKey]);
 
   const effectiveSelectedKey = selectedKey ?? liveMapVehicles[0]?.key ?? null;
+  const selectedTrailLogs = effectiveSelectedKey ? (trailLogs[effectiveSelectedKey] ?? []) : [];
 
   return (
     <div className="space-y-4">
@@ -321,6 +355,11 @@ export default function LiveTrackingPage() {
             {assignedError}
           </div>
         )}
+
+        <Card className="border-border bg-card/60">
+          <CardHeader className="flex flex-row items-center justify-between pb-3"><div><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-primary" />Movement trail logs</CardTitle><p className="mt-1 text-xs text-muted-foreground">Start, stops, and recorded GPS points for the selected bike.</p></div><Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">{selectedTrailLogs.length} points</Badge></CardHeader>
+          <CardContent>{selectedTrailLogs.length === 0 ? <div className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">Choose a bike and date range with recorded positions to view its trail log.</div> : <div className="max-h-64 overflow-auto rounded-xl border border-border"><div className="divide-y divide-border">{selectedTrailLogs.slice().reverse().map((log, index) => <div key={`${log.recorded_at}:${index}`} className="flex items-center justify-between gap-3 px-3 py-2.5 text-xs"><div className="flex min-w-0 items-center gap-2"><CircleDot className={cn("h-3.5 w-3.5 shrink-0", index === selectedTrailLogs.length - 1 ? "text-emerald-400" : "text-sky-400")} /><span className="truncate text-foreground">{formatUpdated(log.recorded_at)}</span></div><div className="flex shrink-0 items-center gap-3 text-muted-foreground"><span>{log.speed != null ? `${Math.round(log.speed)} km/h` : "—"}</span><span>{log.ignition == null ? "Ignition —" : log.ignition ? "Ignition on" : "Ignition off"}</span><a className="text-primary hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${log.latitude},${log.longitude}`} target="_blank" rel="noreferrer">Map</a></div></div>)}</div></div>}</CardContent>
+        </Card>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="border-border bg-card/60">
@@ -371,9 +410,12 @@ export default function LiveTrackingPage() {
                   className="bg-card/60 pl-9"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Showing {filtered.length} assigned device{filtered.length === 1 ? "" : "s"}
-              </p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Filter className="h-3.5 w-3.5" />Bike</span><select value={selectedBike} onChange={(e) => setSelectedBike(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-background/60 px-2 text-xs text-foreground"><option value="ALL">All bikes</option>{vehiclesToTrack.map((vehicle) => <option key={vehicle.deviceId} value={vehicle.deviceId}>{vehicle.vehicleName}</option>)}</select></label>
+                <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />From</span><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 bg-background/60 text-xs" /></label>
+                <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />To</span><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 bg-background/60 text-xs" /></label>
+              </div>
+              <p className="text-xs text-muted-foreground">Showing {filtered.length} assigned device{filtered.length === 1 ? "" : "s"} · trail window {fromDate} to {toDate}</p>
             </CardContent>
           </Card>
         </div>
