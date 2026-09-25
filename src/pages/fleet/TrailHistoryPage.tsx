@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { CalendarDays, CircleDot, Gauge, MapPin, Route, Search, Zap } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { TablePagination } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,8 @@ export default function TrailHistoryPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [logPage, setLogPage] = useState(1);
+  const logPageSize = 25;
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -57,6 +60,11 @@ export default function TrailHistoryPage() {
     if (!normalized) return validPositions;
     return validPositions.filter((point) => `${point.recorded_at} ${point.latitude} ${point.longitude} ${point.address ?? ""} ${point.place_name ?? ""}`.toLowerCase().includes(normalized));
   }, [validPositions, query]);
+  const paginatedPositions = filteredPositions.slice((logPage - 1) * logPageSize, logPage * logPageSize);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [query, positions.length]);
 
   const markers = useMemo<MapMarkerSpec[]>(() => validPositions.map((point, index) => ({
     id: `raw:${point.id}`,
@@ -85,7 +93,7 @@ export default function TrailHistoryPage() {
 
     {positions.length === 0 ? <Card className="border-border bg-card/40"><CardContent className="py-20 text-center"><MapPin className="mx-auto h-8 w-8 text-primary" /><h2 className="mt-3 text-lg font-semibold">Select a bike and time range</h2><p className="mt-1 text-sm text-muted-foreground">Every raw telemetry record with valid latitude and longitude will appear as a point on the map.</p></CardContent></Card> : <>
       <Card className="overflow-hidden border-border bg-card/40"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm font-semibold">Raw positional history · {selectedDevice?.vehicleName ?? "Tracker"}</CardTitle><span className="text-xs text-muted-foreground">Green start · pink latest · blue every recorded point</span></CardHeader><CardContent className="p-0"><PlatformMap markers={markers} polylines={polylines} heightClass="h-[560px] w-full" /></CardContent></Card>
-      <Card className="border-border bg-card/40"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle className="text-sm font-semibold">Telemetry log points</CardTitle><div className="relative w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search time or coordinate" className="pl-9" /></div></CardHeader><CardContent className="p-0"><div className="max-h-[520px] overflow-auto"><Table><TableHeader><TableRow><TableHead>Time</TableHead><TableHead>Coordinates</TableHead><TableHead>Speed / course</TableHead><TableHead>Ignition</TableHead><TableHead>Battery</TableHead><TableHead>Satellites</TableHead><TableHead>Map</TableHead></TableRow></TableHeader><TableBody>{filteredPositions.slice().reverse().map((point) => <TableRow key={`${point.id}:${point.recorded_at}`}><TableCell className="whitespace-nowrap font-mono text-xs">{format(new Date(point.recorded_at), "HH:mm:ss")}</TableCell><TableCell className="font-mono text-xs">{point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}</TableCell><TableCell><span className="flex items-center gap-1 text-xs"><Gauge className="h-3.5 w-3.5 text-muted-foreground" />{point.speed != null ? `${Math.round(point.speed)} km/h` : "—"} · {point.course != null ? `${Math.round(point.course)}°` : "—"}</span></TableCell><TableCell><span className="flex items-center gap-1 text-xs"><Zap className="h-3.5 w-3.5 text-muted-foreground" />{point.ignition == null ? "—" : point.ignition ? "On" : "Off"}</span></TableCell><TableCell className="text-xs">{point.battery_voltage_mv != null ? `${(point.battery_voltage_mv / 1000).toFixed(1)}V` : "—"}</TableCell><TableCell className="text-xs">{point.satellites ?? "—"}</TableCell><TableCell><a className="inline-flex items-center gap-1 text-xs text-primary hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`} target="_blank" rel="noreferrer"><CircleDot className="h-3.5 w-3.5" />Open</a></TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card>
+      <Card className="border-border bg-card/40"><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle className="text-sm font-semibold">Telemetry log points</CardTitle><div className="relative w-64"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search time or coordinate" className="pl-9" /></div></CardHeader><CardContent className="p-0"><div className="max-h-[520px] overflow-auto"><Table><TableHeader><TableRow><TableHead>Time</TableHead><TableHead>Coordinates</TableHead><TableHead>Speed / course</TableHead><TableHead>Ignition</TableHead><TableHead>Battery</TableHead><TableHead>Satellites</TableHead><TableHead>Map</TableHead></TableRow></TableHeader><TableBody>{paginatedPositions.slice().reverse().map((point) => <TableRow key={`${point.id}:${point.recorded_at}`}><TableCell className="whitespace-nowrap font-mono text-xs">{format(new Date(point.recorded_at), "HH:mm:ss")}</TableCell><TableCell className="font-mono text-xs">{point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}</TableCell><TableCell><span className="flex items-center gap-1 text-xs"><Gauge className="h-3.5 w-3.5 text-muted-foreground" />{point.speed != null ? `${Math.round(point.speed)} km/h` : "—"} · {point.course != null ? `${Math.round(point.course)}°` : "—"}</span></TableCell><TableCell><span className="flex items-center gap-1 text-xs"><Zap className="h-3.5 w-3.5 text-muted-foreground" />{point.ignition == null ? "—" : point.ignition ? "On" : "Off"}</span></TableCell><TableCell className="text-xs">{point.battery_voltage_mv != null ? `${(point.battery_voltage_mv / 1000).toFixed(1)}V` : "—"}</TableCell><TableCell className="text-xs">{point.satellites ?? "—"}</TableCell><TableCell><a className="inline-flex items-center gap-1 text-xs text-primary hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`} target="_blank" rel="noreferrer"><CircleDot className="h-3.5 w-3.5" />Open</a></TableCell></TableRow>)}</TableBody></Table></div><TablePagination page={logPage} pageSize={logPageSize} total={filteredPositions.length} onPageChange={setLogPage} /></CardContent></Card>
     </>}
   </div>;
 }

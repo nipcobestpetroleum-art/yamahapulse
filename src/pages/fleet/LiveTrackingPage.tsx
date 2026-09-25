@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { TablePagination } from "@/components/table-pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -95,6 +96,8 @@ export default function LiveTrackingPage() {
   const [fromDate, setFromDate] = useReactState(dateInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000)));
   const [toDate, setToDate] = useReactState(dateInputValue(new Date()));
   const [selectedKey, setSelectedKey] = useReactState<string | null>(null);
+  const [trailLogPage, setTrailLogPage] = useReactState(1);
+  const trailLogPageSize = 25;
 
   const [assigned, setAssigned] = useReactState<AssignedDevice[] | null>(null);
   const [assignedError, setAssignedError] = useReactState<string | null>(null);
@@ -313,6 +316,11 @@ export default function LiveTrackingPage() {
 
   const effectiveSelectedKey = selectedKey ?? liveMapVehicles[0]?.key ?? null;
   const selectedTrailLogs = effectiveSelectedKey ? (trailLogs[effectiveSelectedKey] ?? []) : [];
+  const paginatedTrailLogs = selectedTrailLogs.slice((trailLogPage - 1) * trailLogPageSize, trailLogPage * trailLogPageSize);
+
+  useEffect(() => {
+    setTrailLogPage(1);
+  }, [effectiveSelectedKey, fromDate, toDate]);
 
   return (
     <div className="space-y-4">
@@ -359,7 +367,7 @@ export default function LiveTrackingPage() {
 
         <Card className="border-border bg-card/60">
           <CardHeader className="flex flex-row items-center justify-between pb-3"><div><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-primary" />Movement trail logs</CardTitle><p className="mt-1 text-xs text-muted-foreground">Start, stops, and recorded GPS points for the selected bike.</p></div><Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">{selectedTrailLogs.length} points</Badge></CardHeader>
-          <CardContent>{selectedTrailLogs.length === 0 ? <div className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">Choose a bike and date range with recorded positions to view its trail log.</div> : <div className="max-h-64 overflow-auto rounded-xl border border-border"><div className="divide-y divide-border">{selectedTrailLogs.slice().reverse().map((log, index) => <div key={`${log.recorded_at}:${index}`} className="flex items-center justify-between gap-3 px-3 py-2.5 text-xs"><div className="flex min-w-0 items-center gap-2"><CircleDot className={cn("h-3.5 w-3.5 shrink-0", index === selectedTrailLogs.length - 1 ? "text-emerald-400" : "text-sky-400")} /><span className="truncate text-foreground">{formatUpdated(log.recorded_at)}</span></div><div className="flex shrink-0 items-center gap-3 text-muted-foreground"><span>{log.speed != null ? `${Math.round(log.speed)} km/h` : "—"}</span><span>{log.ignition == null ? "Ignition —" : log.ignition ? "Ignition on" : "Ignition off"}</span><a className="text-primary hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${log.latitude},${log.longitude}`} target="_blank" rel="noreferrer">Map</a></div></div>)}</div></div>}</CardContent>
+          <CardContent>{selectedTrailLogs.length === 0 ? <div className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">Choose a bike and date range with recorded positions to view its trail log.</div> : <div className="max-h-64 overflow-auto rounded-xl border border-border"><div className="divide-y divide-border">{paginatedTrailLogs.slice().reverse().map((log, index) => <div key={`${log.recorded_at}:${index}`} className="flex items-center justify-between gap-3 px-3 py-2.5 text-xs"><div className="flex min-w-0 items-center gap-2"><CircleDot className={cn("h-3.5 w-3.5 shrink-0", index === selectedTrailLogs.length - 1 ? "text-emerald-400" : "text-sky-400")} /><span className="truncate text-foreground">{formatUpdated(log.recorded_at)}</span></div><div className="flex shrink-0 items-center gap-3 text-muted-foreground"><span>{log.speed != null ? `${Math.round(log.speed)} km/h` : "—"}</span><span>{log.ignition == null ? "Ignition —" : log.ignition ? "Ignition on" : "Ignition off"}</span><a className="text-primary hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${log.latitude},${log.longitude}`} target="_blank" rel="noreferrer">Map</a></div></div>)}</div></div>}<TablePagination page={trailLogPage} pageSize={trailLogPageSize} total={selectedTrailLogs.length} onPageChange={setTrailLogPage} /></CardContent>
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-2">

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { TablePagination } from "@/components/table-pagination";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { showError } from "@/utils/toast";
@@ -56,6 +57,8 @@ export default function DriverBehaviourPage() {
   const [previousEvents, setPreviousEvents] = useState<DeviceEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodDays, setPeriodDays] = useState(30);
+  const [scoreboardPage, setScoreboardPage] = useState(1);
+  const scoreboardPageSize = 10;
 
   const load = useCallback(async () => {
     if (!currentOrg) return;
@@ -154,6 +157,11 @@ export default function DriverBehaviourPage() {
     ]);
 
   const periodLabel = PERIODS.find((p) => p.days === periodDays)?.label ?? "";
+  const paginatedScores = scores.slice((scoreboardPage - 1) * scoreboardPageSize, scoreboardPage * scoreboardPageSize);
+
+  useEffect(() => {
+    setScoreboardPage(1);
+  }, [periodDays, scores.length]);
 
   return (
     <div>
@@ -310,9 +318,9 @@ export default function DriverBehaviourPage() {
             </div>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-5">
+          <div className="space-y-4">
             {/* Infraction breakdown */}
-            <Card className="border-border bg-card/60 lg:col-span-2">
+            <Card className="border-border bg-card/60">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Infractions by category</CardTitle>
               </CardHeader>
@@ -345,7 +353,7 @@ export default function DriverBehaviourPage() {
             </Card>
 
             {/* Full scoreboard */}
-            <Card className="border-border bg-card/60 lg:col-span-3">
+            <Card className="border-border bg-card/60">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Trophy className="h-4 w-4 text-amber-400" />
@@ -368,13 +376,13 @@ export default function DriverBehaviourPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {scores.map((s, i) => {
+                      {paginatedScores.map((s, i) => {
                         const prev = previousScores.get(s.driver.id);
                         const delta = prev !== undefined ? s.score - prev : null;
                         return (
                           <TableRow key={s.driver.id}>
                             <TableCell className="pl-4 text-sm font-semibold text-muted-foreground">
-                              {i + 1}
+                              {(scoreboardPage - 1) * scoreboardPageSize + i + 1}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
@@ -437,6 +445,7 @@ export default function DriverBehaviourPage() {
                     </TableBody>
                   </Table>
                 </div>
+                <TablePagination page={scoreboardPage} pageSize={scoreboardPageSize} total={scores.length} onPageChange={setScoreboardPage} />
               </CardContent>
             </Card>
           </div>
