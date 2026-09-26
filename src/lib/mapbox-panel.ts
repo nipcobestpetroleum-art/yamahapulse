@@ -35,8 +35,13 @@ function toGeocodeResponse(data: MapboxFeatureCollection): PanelGeocodeResponse 
 }
 export async function panelForwardGeocode(query: string) { return toGeocodeResponse(await mapboxInvoke<MapboxFeatureCollection>("geocode-forward", { query })); }
 export async function panelReverseGeocode(location: { lat: number; lng: number }) { return toGeocodeResponse(await mapboxInvoke<MapboxFeatureCollection>("geocode-reverse", { latitude: location.lat, longitude: location.lng })); }
+export async function panelSearchForward(query: string) { return mapboxInvoke<MapboxFeatureCollection>("search-forward", { query }); }
 
 export async function panelDirections(coordinates: Array<{ latitude: number; longitude: number }>, traffic: boolean) { return mapboxInvoke<DirectionsResponse>("directions", { coordinates, profile: traffic ? "driving-traffic" : "driving" }); }
 export async function panelMatrix(coordinates: Array<{ latitude: number; longitude: number }>, profile = "driving") { return mapboxInvoke<MatrixResponse>("matrix", { coordinates, profile }); }
 export async function panelMatching(coordinates: Array<{ latitude: number; longitude: number }>) { return mapboxInvoke<MatchingResponse>("matching", { coordinates, profile: "driving" }); }
+export async function panelIsochrone(location: { lat: number; lng: number }, contoursMinutes: number[], profile = "driving") { return mapboxInvoke<MapboxFeatureCollection>("isochrone", { coordinates: [{ latitude: location.lat, longitude: location.lng }], contoursMinutes: contoursMinutes.join(","), profile }); }
+export async function panelTilequery(params: { tileset: string; latitude: number; longitude: number; radius: number }) { return mapboxInvoke<MapboxFeatureCollection>("tilequery", params); }
+export async function panelOptimization(problem: Record<string, unknown>) { return mapboxInvoke<Record<string, unknown>>("optimization-submit", { problem }); }
+export async function panelOptimizationStatus(submissionId: string) { return mapboxInvoke<Record<string, unknown>>("optimization-status", { submissionId }); }
 export async function panelStaticImage(params: Record<string, unknown>) { return mapboxInvoke<StaticImageResponse>("static-image", params); }

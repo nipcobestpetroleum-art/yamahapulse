@@ -10,5 +10,6 @@ export function PlaybackMap({ positions, activeIndex }: Props) {
   const markers = useMemo<MapMarkerSpec[]>(() => active ? [{ id: "playback:active", lat: active.latitude, lng: active.longitude, title: "Playback position", color: "#3B82F6", scale: 10, snippet: [new Date(active.recorded_at).toLocaleString()] }] : [], [active]);
   const polylines = useMemo<MapPolylineSpec[]>(() => positions.length > 1 ? [{ id: "playback:trail", points: positions.map((position) => [position.latitude, position.longitude]), color: "#3B82F6", weight: 4 }] : [], [positions]);
   const viewRequest = active ? ({ lat: active.latitude, lng: active.longitude, zoom: 14, nonce: activeIndex }) satisfies ViewRequest : null;
-  return <PlatformMap markers={markers} polylines={polylines} viewRequest={viewRequest} heightClass="h-[480px] w-full lg:h-[520px]" />;
+  const heatPoints = useMemo(() => positions.map((position) => ({ lat: position.latitude, lng: position.longitude, weight: Math.max(0.2, Math.min(1, (position.speed ?? 0) / 80)) })), [positions]);
+  return <PlatformMap markers={markers} polylines={polylines} heatPoints={heatPoints} viewRequest={viewRequest} heightClass="h-[480px] w-full lg:h-[520px]" />;
 }

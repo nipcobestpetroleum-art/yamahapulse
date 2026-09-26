@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, Loader2, Maximize2, Mountain, Satellite } from "lucide-react";
+import { Check, Crosshair, Eraser, Loader2, Maximize2, Mountain, Pencil, Satellite, TrafficCone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { MapMarkerSpec, MapPolylineSpec, ViewRequest } from "@/components/mapstudio/types";
+import type { MapMarkerSpec, MapPolylineSpec, MapHeatPoint, ViewRequest } from "@/components/mapstudio/types";
 import mapboxgl, { type Map as MapboxMap, type Marker, type Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -9,6 +9,7 @@ interface MapboxMapCanvasProps {
   token: string | null;
   markers: MapMarkerSpec[];
   polylines: MapPolylineSpec[];
+  heatPoints?: MapHeatPoint[];
   selectedMarkerId?: string | null;
   onMarkerClick?: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
@@ -23,7 +24,7 @@ function popupHtml(marker: MapMarkerSpec): string {
   return `<div style="min-width:180px"><strong>${marker.title.replace(/[&<>\"]/g, "")}</strong>${lines}</div>`;
 }
 
-export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange, heightClass }: MapboxMapCanvasProps) {
+export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange, heightClass }: MapboxMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
@@ -35,6 +36,11 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
   const [errorText, setErrorText] = useState<string | null>(null);
   const [aerial, setAerial] = useState(false);
   const [terrain3d, setTerrain3d] = useState(false);
+  const [traffic] = useState(true);
+  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState<[number, number][]>([]);
+  const drawingRef = useRef(false);
+  drawingRef.current = drawing;
   const [styleRevision, setStyleRevision] = useState(0);
 
   useEffect(() => {
@@ -59,7 +65,10 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
         setStatus("ready");
       });
       map.on("style.load", () => setStyleRevision((revision) => revision + 1));
-      map.on("click", (event) => callbacksRef.current.onMapClick?.(event.lngLat.lat, event.lngLat.lng));
+      map.on("click", (event) => {
+        if (drawingRef.current) setDraft((current) => [...current, [event.lngLat.lat, event.lngLat.lng]]);
+        callbacksRef.current.onMapClick?.(event.lngLat.lat, event.lngLat.lng);
+      });
       map.on("moveend", () => callbacksRef.current.onViewChange?.({ lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() }));
       mapRef.current = map;
     }).catch((error: unknown) => {
@@ -75,7 +84,8 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
     if (!map || status !== "ready") return;
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
-    for (const spec of markers) {
+    const visibleMarkers = markers.length > 40 ? [] : markers;
+    for (const spec of visibleMarkers) {
       const element = document.createElement("button");
       element.type = "button";
       element.title = spec.title;
@@ -123,6 +133,33 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== "ready" || !map.isStyleLoaded()) return;
+    const sourceId = "mapstudio-clusters";
+    const clusterLayer = "mapstudio-clusters-layer";
+    const countLayer = "mapstudio-cluster-count";
+    const pointLayer = "mapstudio-cluster-point";
+    const data = { type: "FeatureCollection" as const, features: markers.map((marker) => ({ type: "Feature" as const, properties: { title: marker.title }, geometry: { type: "Point" as const, coordinates: [marker.lng, marker.lat] } })) };
+    try {
+      if (markers.length > 40) {
+        if (!map.getSource(sourceId)) {
+          map.addSource(sourceId, { type: "geojson", data, cluster: true, clusterRadius: 48, clusterMaxZoom: 14 });
+          map.addLayer({ id: clusterLayer, type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": "#6366f1", "circle-radius": ["step", ["get", "point_count"], 18, 25, 23, 100, 29], "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
+          map.addLayer({ id: countLayer, type: "symbol", source: sourceId, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 }, paint: { "text-color": "#fff" } });
+          map.addLayer({ id: pointLayer, type: "circle", source: sourceId, filter: ["!", ["has", "point_count"]], paint: { "circle-color": "#22c55e", "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
+        } else (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data);
+      } else {
+        if (map.getLayer(countLayer)) map.removeLayer(countLayer);
+        if (map.getLayer(clusterLayer)) map.removeLayer(clusterLayer);
+        if (map.getLayer(pointLayer)) map.removeLayer(pointLayer);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      }
+    } catch {
+      return;
+    }
+  }, [markers, status, styleRevision]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready" || !map.isStyleLoaded()) return;
     try {
       if (!map.getSource("mapbox-dem")) map.addSource("mapbox-dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
       if (terrain3d) map.setTerrain({ source: "mapbox-dem", exaggeration: 1.25 });
@@ -132,7 +169,8 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
     }
     const sourceId = "mapstudio-lines";
     const layerId = "mapstudio-lines-layer";
-    const data = { type: "FeatureCollection" as const, features: polylines.filter((line) => line.points.length > 1).map((line) => ({ type: "Feature" as const, properties: { color: line.color ?? "#6366f1", weight: line.weight ?? 4, opacity: line.opacity ?? 0.9, dashed: Boolean(line.dashed) }, geometry: { type: "LineString" as const, coordinates: line.points.map(([lat, lng]) => [lng, lat]) } })) };
+    const allPolylines = draft.length > 1 ? [...polylines, { id: "mapstudio:drawing", points: draft, color: "#f97316", weight: 4, opacity: 0.95, dashed: true }] : polylines;
+    const data = { type: "FeatureCollection" as const, features: allPolylines.filter((line) => line.points.length > 1).map((line) => ({ type: "Feature" as const, properties: { color: line.color ?? "#6366f1", weight: line.weight ?? 4, opacity: line.opacity ?? 0.9, dashed: Boolean(line.dashed) }, geometry: { type: "LineString" as const, coordinates: line.points.map(([lat, lng]) => [lng, lat]) } })) };
     if (map.getSource(sourceId)) (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data);
     else {
       map.addSource(sourceId, { type: "geojson", data });
@@ -147,7 +185,36 @@ export function MapboxMapCanvas({ token, markers, polylines, selectedMarkerId, o
         // The style may have been replaced between cleanup and teardown.
       }
     };
-  }, [polylines, status, terrain3d, styleRevision]);
+  }, [draft, polylines, status, terrain3d, styleRevision]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready" || !map.isStyleLoaded()) return;
+    const sourceId = "mapstudio-heat";
+    const layerId = "mapstudio-heat-layer";
+    const data = { type: "FeatureCollection" as const, features: heatPoints.map((point) => ({ type: "Feature" as const, properties: { weight: point.weight ?? 1 }, geometry: { type: "Point" as const, coordinates: [point.lng, point.lat] } })) };
+    if (map.getSource(sourceId)) (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data);
+    else {
+      map.addSource(sourceId, { type: "geojson", data });
+      map.addLayer({ id: layerId, type: "heatmap", source: sourceId, paint: { "heatmap-weight": ["get", "weight"], "heatmap-intensity": 1.2, "heatmap-radius": 28, "heatmap-opacity": 0.78, "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(34,197,94,0)", 0.35, "#facc15", 0.7, "#f97316", 1, "#ef4444"] } });
+    }
+  }, [heatPoints, status, styleRevision]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready" || !map.isStyleLoaded()) return;
+    const sourceId = "mapstudio-traffic";
+    const layerId = "mapstudio-traffic-layer";
+    try {
+      if (traffic && !map.getSource(sourceId)) {
+        map.addSource(sourceId, { type: "vector", url: "mapbox://mapbox.mapbox-traffic-v1" });
+        map.addLayer({ id: layerId, type: "line", source: sourceId, "source-layer": "traffic", minzoom: 8, paint: { "line-color": ["match", ["get", "congestion"], "low", "#22c55e", "moderate", "#facc15", "heavy", "#f97316", "severe", "#ef4444", "#94a3b8"], "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 14, 4], "line-opacity": 0.8 } });
+      } else if (!traffic && map.getLayer(layerId)) map.removeLayer(layerId);
+      if (!traffic && map.getSource(sourceId)) map.removeSource(sourceId);
+    } catch {
+      return;
+    }
+  }, [traffic, status, styleRevision]);
 
   useEffect(() => {
     const map = mapRef.current;

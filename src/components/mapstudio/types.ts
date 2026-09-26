@@ -1,6 +1,6 @@
 import type { LatestPosition } from "@/types/database";
 
-export type StudioTab = "fleet" | "places" | "routing" | "roads" | "environment" | "static";
+export type StudioTab = "fleet" | "places" | "routing" | "roads" | "environment" | "static" | "advanced";
 
 export interface MapMarkerSpec {
   id: string;
@@ -23,7 +23,14 @@ export interface MapPolylineSpec {
   opacity?: number;
 }
 
+export interface MapHeatPoint {
+  lat: number;
+  lng: number;
+  weight?: number;
+}
+
 export interface StudioOverlays {
+  heatPoints?: MapHeatPoint[];
   markers: MapMarkerSpec[];
   polylines: MapPolylineSpec[];
 }

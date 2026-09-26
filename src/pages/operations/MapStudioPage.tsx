@@ -15,6 +15,7 @@ import { RoutingPanel } from "@/components/mapstudio/routing-panel";
 import { RoadsPanel } from "@/components/mapstudio/roads-panel";
 import { EnvironmentPanel } from "@/components/mapstudio/environment-panel";
 import { StaticMapsPanel } from "@/components/mapstudio/static-maps-panel";
+import { AdvancedPanel } from "@/components/mapstudio/advanced-panel";
 import type { StudioOverlays, StudioTab, StudioVehicle, ViewRequest } from "@/components/mapstudio/types";
 
 const EMPTY_OVERLAYS: StudioOverlays = { markers: [], polylines: [] };
@@ -42,6 +43,7 @@ export default function MapStudioPage() {
     roads: EMPTY_OVERLAYS,
     environment: EMPTY_OVERLAYS,
     static: EMPTY_OVERLAYS,
+    advanced: EMPTY_OVERLAYS,
   });
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
@@ -213,6 +215,9 @@ export default function MapStudioPage() {
           <TabsTrigger value="static" className="gap-1.5 text-xs">
             <Satellite className="h-3.5 w-3.5" /> Static & Tiles
           </TabsTrigger>
+          <TabsTrigger value="advanced" className="gap-1.5 text-xs">
+            <MapPin className="h-3.5 w-3.5" /> Advanced APIs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="fleet" className="mt-4">
@@ -251,6 +256,9 @@ export default function MapStudioPage() {
         </TabsContent>
         <TabsContent value="static" className="mt-4">
           <StaticMapsPanel mapView={mapView} lastMapClick={lastMapClick} vehicles={vehicles} />
+        </TabsContent>
+        <TabsContent value="advanced" className="mt-4">
+          <AdvancedPanel vehicles={vehicles} selectedDeviceId={selectedDeviceId} lastMapClick={lastMapClick} setOverlays={setOverlays} fitOverlays={fitOverlays} />
         </TabsContent>
       </Tabs>
     </div>

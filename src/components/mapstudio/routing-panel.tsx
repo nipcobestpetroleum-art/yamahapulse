@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PlaceAutocomplete } from "@/components/mapstudio/place-autocomplete";
 import type { StudioOverlays, StudioTab, StudioVehicle } from "@/components/mapstudio/types";
 import { formatMapboxDistance, formatMapboxDuration } from "@/lib/mapbox";
-import { panelDirections, panelMatrix, panelPlaceDetails, type PanelPrediction } from "@/lib/mapbox-panel";
+import { panelDirections, panelMatrix, panelOptimization, panelOptimizationStatus, panelPlaceDetails, type PanelPrediction } from "@/lib/mapbox-panel";
 
 interface SelectedPoint {
   lat: number;
@@ -108,7 +108,31 @@ export function RoutingPanel({ vehicles, selectedDeviceId, setOverlays, fitOverl
 
       if (engine === "optimization" && stops.length >= 2) {
         engineLabel = "Mapbox Optimization API";
-        setError("Mapbox Optimization API submissions require a routing problem and asynchronous job polling. The route is computed with Directions API for now.");
+        const locations = [origin, ...stops, destination].map((point, index) => ({ name: `location-${index}`, coordinates: [point.lng, point.lat] }));
+        const problem = {
+          version: 1,
+          locations,
+          vehicles: [{ name: "fleet-vehicle", start_location: "location-0", end_location: `location-${locations.length - 1}` }],
+          services: stops.map((stop, index) => ({ name: `stop-${index}`, location: `location-${index + 1}` })),
+        };
+        const submitted = await panelOptimization(problem);
+        const submissionId = typeof submitted.id === "string" ? submitted.id : typeof submitted.submission_id === "string" ? submitted.submission_id : null;
+        if (!submissionId) throw new Error("Mapbox did not return an optimization submission ID");
+        let completed: Record<string, unknown> | null = null;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          const status = await panelOptimizationStatus(submissionId);
+          const state = String(status.status ?? status.state ?? "").toLowerCase();
+          if (["completed", "succeeded", "success"].includes(state) || status.solution) { completed = status; break; }
+          if (["failed", "error"].includes(state)) throw new Error("Mapbox route optimization failed");
+        }
+        if (!completed) throw new Error("Mapbox optimization is still processing. Please try again shortly.");
+        const optimizedServices = (completed.solution as { routes?: Array<{ stops?: Array<{ type?: string; location?: string }> }> } | undefined)?.routes?.[0]?.stops ?? [];
+        const order = optimizedServices.map((stop) => Number.parseInt(String(stop.location ?? "").replace("location-", ""), 10) - 1).filter((index) => index >= 0 && index < stops.length);
+        if (order.length === stops.length) {
+          orderedStops = order.map((index) => stops[index]);
+          setOptimizedOrder(order);
+        }
       }
 
       const data = await panelDirections([
