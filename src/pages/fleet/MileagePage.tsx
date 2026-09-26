@@ -169,8 +169,27 @@ export default function MileagePage() {
     const start = new Date(year, month, 1).toISOString();
     const end = new Date(year, month + 1, 1).toISOString();
     setLoadingMetrics(true);
+    const loadHistory = async () => {
+      const pageSize = 1000;
+      const allPoints: unknown[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("positions")
+          .select("recorded_at,latitude,longitude,speed,movement,ignition,battery_voltage_mv,battery_level,satellites")
+          .eq("organization_id", currentOrg.id)
+          .eq("device_id", selectedTracker.deviceId)
+          .gte("recorded_at", start)
+          .lt("recorded_at", end)
+          .order("recorded_at", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) return { data: null, error };
+        allPoints.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return { data: allPoints, error: null };
+    };
     Promise.all([
-      supabase.from("positions").select("recorded_at,latitude,longitude,speed,movement,ignition,battery_voltage_mv,battery_level,satellites").eq("organization_id", currentOrg.id).eq("device_id", selectedTracker.deviceId).gte("recorded_at", start).lt("recorded_at", end).order("recorded_at", { ascending: true }).limit(10000),
+      loadHistory(),
       supabase.from("latest_positions").select("recorded_at,latitude,longitude,speed,movement,ignition,battery_voltage_mv,battery_level,satellites").eq("device_id", selectedTracker.deviceId).maybeSingle(),
       supabase.from("drivers").select("name").eq("organization_id", currentOrg.id).eq("vehicle_id", selectedTracker.vehicleId).eq("status", "ACTIVE").limit(1).maybeSingle(),
     ]).then(([historyResult, latestResult, driverResult]) => {
