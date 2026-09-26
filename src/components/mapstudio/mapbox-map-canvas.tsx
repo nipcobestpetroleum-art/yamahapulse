@@ -10,6 +10,7 @@ interface MapboxMapCanvasProps {
   markers: MapMarkerSpec[];
   polylines: MapPolylineSpec[];
   heatPoints?: MapHeatPoint[];
+  clusterMarkers?: boolean;
   selectedMarkerId?: string | null;
   onMarkerClick?: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
@@ -24,7 +25,7 @@ function popupHtml(marker: MapMarkerSpec): string {
   return `<div style="min-width:180px"><strong>${marker.title.replace(/[&<>\"]/g, "")}</strong>${lines}</div>`;
 }
 
-export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange, heightClass }: MapboxMapCanvasProps) {
+export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], clusterMarkers = false, selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange, heightClass }: MapboxMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
@@ -84,7 +85,7 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], se
     if (!map || status !== "ready") return;
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
-    const visibleMarkers = markers.length > 40 ? [] : markers;
+    const visibleMarkers = clusterMarkers && markers.length > 40 ? [] : markers;
     for (const spec of visibleMarkers) {
       const element = document.createElement("button");
       element.type = "button";
@@ -128,7 +129,7 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], se
       const marker = new mapboxgl.Marker({ element }).setLngLat([spec.lng, spec.lat]).addTo(map);
       markersRef.current.push(marker);
     }
-  }, [markers, selectedMarkerId, status]);
+  }, [clusterMarkers, markers, selectedMarkerId, status]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -139,7 +140,7 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], se
     const pointLayer = "mapstudio-cluster-point";
     const data = { type: "FeatureCollection" as const, features: markers.map((marker) => ({ type: "Feature" as const, properties: { title: marker.title }, geometry: { type: "Point" as const, coordinates: [marker.lng, marker.lat] } })) };
     try {
-      if (markers.length > 40) {
+      if (clusterMarkers && markers.length > 40) {
         if (!map.getSource(sourceId)) {
           map.addSource(sourceId, { type: "geojson", data, cluster: true, clusterRadius: 48, clusterMaxZoom: 14 });
           map.addLayer({ id: clusterLayer, type: "circle", source: sourceId, filter: ["has", "point_count"], paint: { "circle-color": "#6366f1", "circle-radius": ["step", ["get", "point_count"], 18, 25, 23, 100, 29], "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
@@ -155,7 +156,7 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], se
     } catch {
       return;
     }
-  }, [markers, status, styleRevision]);
+  }, [clusterMarkers, markers, status, styleRevision]);
 
   useEffect(() => {
     const map = mapRef.current;

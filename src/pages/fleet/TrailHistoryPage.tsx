@@ -70,7 +70,7 @@ export default function TrailHistoryPage() {
     id: `raw:${point.id}`,
     lat: point.latitude,
     lng: point.longitude,
-    title: `${selectedDevice?.vehicleName ?? "Tracker"} · ${format(new Date(point.recorded_at), "HH:mm:ss")}`,
+    title: `${index === validPositions.length - 1 ? "Current location · " : ""}${selectedDevice?.vehicleName ?? "Tracker"} · ${format(new Date(point.recorded_at), "HH:mm:ss")}`,
     icon: "dot",
     color: index === 0 ? "#34d399" : index === validPositions.length - 1 ? "#fb7185" : "#60a5fa",
     scale: index === 0 || index === validPositions.length - 1 ? 8 : 5,
