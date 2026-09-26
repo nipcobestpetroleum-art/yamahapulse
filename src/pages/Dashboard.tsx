@@ -31,7 +31,7 @@ import { DashboardMapbox } from "@/components/dashboard/dashboard-mapbox";
 import { createVehicleMarkerIcon } from "@/components/tracking/vehicle-marker-icon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { useLivePositions } from "@/hooks/use-live-positions";
+import { useTracking } from "@/contexts/tracking-context";
 import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES, type TelemetryStatus } from "@/lib/telemetry-status";
 import type { LatestPosition, Vehicle, VehicleStatus } from "@/types/database";
 
@@ -117,7 +117,7 @@ function FleetOperationsMap({ assets }: { assets: DashboardAsset[] }) {
 }
 
 function FleetOperationsCard({ organizationId }: { organizationId: string }) {
-  const { positionsByDeviceId, loading: positionsLoading, refetch: refetchPositions } = useLivePositions(organizationId);
+  const { positionsByDeviceId, loading: positionsLoading, refetch: refetchPositions } = useTracking();
   const [assignments, setAssignments] = useState<DashboardAsset[] | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);

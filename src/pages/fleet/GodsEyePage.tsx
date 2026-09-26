@@ -1,0 +1,39 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, LocateFixed, Orbit, Search, WifiOff } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PlatformMap } from "@/components/maps/platform-map";
+import { useTracking } from "@/contexts/tracking-context";
+import { getTrackerBallColor, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES, type TelemetryStatus } from "@/lib/telemetry-status";
+import type { MapMarkerSpec } from "@/components/mapstudio/types";
+
+const filters: Array<"ALL" | TelemetryStatus> = ["ALL", "MOVING", "IDLING", "STOPPED", "OFFLINE", "NO_DATA"];
+
+export default function GodsEyePage() {
+  const { vehicles, selectedVehicleId, setSelectedVehicleId, loading, error, realtimeStatus, setMode } = useTracking();
+  const navigate = useNavigate();
+  const [filter, setFilter] = useState<(typeof filters)[number]>("ALL");
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => vehicles.filter((vehicle) => {
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || [vehicle.vehicleName, vehicle.registration ?? "", vehicle.deviceName, vehicle.imei].some((value) => value.toLowerCase().includes(query));
+    return matchesSearch && (filter === "ALL" || vehicle.status === filter);
+  }), [vehicles, search, filter]);
+  const markers = useMemo<MapMarkerSpec[]>(() => filtered.flatMap((vehicle) => vehicle.position && Number.isFinite(vehicle.position.latitude) && Number.isFinite(vehicle.position.longitude) && (vehicle.position.latitude !== 0 || vehicle.position.longitude !== 0) ? [{ id: vehicle.deviceId, lat: vehicle.position.latitude, lng: vehicle.position.longitude, title: vehicle.vehicleName, icon: "bike", color: getTrackerBallColor(vehicle.position), scale: vehicle.deviceId === selectedVehicleId ? 11 : 8, snippet: [vehicle.registration ?? "Unregistered", `Status: ${TELEMETRY_STATUS_LABELS[vehicle.status]}`, `Speed: ${vehicle.position.speed == null ? "—" : `${Math.round(vehicle.position.speed)} km/h`}`, `Last update: ${new Date(vehicle.position.recorded_at).toLocaleString()}`] }] : []), [filtered, selectedVehicleId]);
+  const selected = vehicles.find((vehicle) => vehicle.deviceId === selectedVehicleId) ?? null;
+  const counts = useMemo(() => filters.reduce((result, status) => ({ ...result, [status]: status === "ALL" ? vehicles.length : vehicles.filter((vehicle) => vehicle.status === status).length }), {} as Record<string, number>), [vehicles]);
+
+  return <div className="space-y-4">
+    <PageHeader title="God's Eye" description="Immersive fleet command view using the same authenticated live GPS state as Normal Tracking" actions={<Badge className="rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-300"><span className="mr-2 h-2 w-2 rounded-full bg-emerald-400" />{realtimeStatus === "CONNECTED" ? "LIVE" : "SYNCING"}</Badge>} />
+    {error && <Card className="border-amber-500/30 bg-amber-500/10"><CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm text-amber-200"><AlertTriangle className="h-5 w-5" />God's Eye is temporarily unavailable. Normal Tracking remains available.<Button size="sm" variant="outline" className="ml-auto" onClick={() => { setMode("normal"); navigate("/fleet/live"); }}>Return to Normal Tracking</Button></CardContent></Card>}
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{filters.slice(0, 5).map((status) => <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-2xl border p-4 text-left transition-colors ${filter === status ? "border-violet-400/60 bg-violet-500/10" : "border-border bg-card/50 hover:bg-card"}`}><div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{status === "ALL" ? "Total vehicles" : TELEMETRY_STATUS_LABELS[status]}</div><div className="mt-2 text-2xl font-bold">{counts[status]}</div></button>)}</div>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <Card className="overflow-hidden border-violet-500/25 bg-slate-950/70"><CardContent className="p-0"><div className="relative"><PlatformMap markers={markers} selectedMarkerId={selectedVehicleId} onMarkerClick={setSelectedVehicleId} heightClass="h-[620px] w-full" /><div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-violet-400/30 bg-slate-950/80 px-4 py-3 text-xs text-violet-100 shadow-xl backdrop-blur"><div className="flex items-center gap-2 font-semibold"><Orbit className="h-4 w-4 text-violet-300" />GOD'S EYE / LIVE FLEET</div><div className="mt-1 text-violet-200/70">GPS positions are supplied by the existing tracking system</div></div>{loading && <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 text-sm text-violet-100">Connecting to live fleet…</div>}</div></CardContent></Card>
+      <Card className="border-border bg-card/60"><CardContent className="space-y-4 p-4"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vehicle, driver, registration…" className="pl-9" /></div><div className="flex flex-wrap gap-1.5">{filters.map((status) => <Button key={status} type="button" size="sm" variant={filter === status ? "default" : "outline"} className="rounded-full text-xs" onClick={() => setFilter(status)}>{status === "ALL" ? "All" : TELEMETRY_STATUS_LABELS[status]}</Button>)}</div><div className="max-h-[470px] space-y-2 overflow-y-auto pr-1">{filtered.map((vehicle) => <button key={vehicle.deviceId} type="button" onClick={() => setSelectedVehicleId(vehicle.deviceId)} className={`w-full rounded-xl border p-3 text-left transition-colors ${selectedVehicleId === vehicle.deviceId ? "border-violet-400/60 bg-violet-500/10" : "border-border/70 bg-background/30 hover:bg-muted/50"}`}><div className="flex items-start justify-between gap-2"><div><div className="font-semibold">{vehicle.vehicleName}</div><div className="text-xs text-muted-foreground">{vehicle.registration ?? vehicle.imei}</div></div><Badge variant="outline" className={TELEMETRY_STATUS_STYLES[vehicle.status]}>{vehicle.status === "OFFLINE" || vehicle.status === "NO_DATA" ? <WifiOff className="mr-1 h-3 w-3" /> : null}{TELEMETRY_STATUS_LABELS[vehicle.status]}</Badge></div><div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Speed <strong className="text-foreground">{vehicle.position?.speed == null ? "—" : `${Math.round(vehicle.position.speed)} km/h`}</strong></span><span>Updated <strong className="text-foreground">{vehicle.position ? new Date(vehicle.position.recorded_at).toLocaleTimeString() : "—"}</strong></span></div></button>)}{filtered.length === 0 && <div className="py-10 text-center text-sm text-muted-foreground">No vehicles match this filter.</div>}</div>{selected && <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-3 text-sm"><div className="font-semibold">Selected vehicle</div><div className="mt-2 space-y-1 text-muted-foreground"><div>{selected.vehicleName} · {selected.registration ?? "No registration"}</div><div>{TELEMETRY_STATUS_LABELS[selected.status]} · {selected.position?.speed == null ? "Speed unavailable" : `${Math.round(selected.position.speed)} km/h`}</div><Button size="sm" variant="outline" className="mt-2" onClick={() => selected.position && window.dispatchEvent(new CustomEvent("tracking:center", { detail: { lat: selected.position.latitude, lng: selected.position.longitude } }))}><LocateFixed className="mr-2 h-4 w-4" />Selected / current GPS</Button></div></div>}</CardContent></Card>
+    </div>
+  </div>;
+}

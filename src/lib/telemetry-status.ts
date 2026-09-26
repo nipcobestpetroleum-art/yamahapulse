@@ -41,17 +41,14 @@ export const TELEMETRY_STATUS_STYLES: Record<TelemetryStatus, string> = {
   UNKNOWN: "border-violet-500/25 bg-violet-500/10 text-violet-400",
 };
 
-/** Ball marker colors: green while the tracker reported within 24h, grey once stale beyond 24h. */
+/** Ball marker colors follow the same 15-minute online threshold as the status badge. */
 export const TRACKER_BALL_LIVE_COLOR = "#22c55e";
 export const TRACKER_BALL_STALE_COLOR = "#94a3b8";
-const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export function getTrackerBallColor(
-  position: Pick<LatestPosition, "recorded_at"> | null | undefined,
+  position: Pick<LatestPosition, "speed" | "ignition" | "movement" | "recorded_at"> | null | undefined,
   now = Date.now(),
 ): string {
-  if (!position) return TRACKER_BALL_STALE_COLOR;
-  const timestamp = new Date(position.recorded_at).getTime();
-  if (!Number.isFinite(timestamp)) return TRACKER_BALL_STALE_COLOR;
-  return now - timestamp > STALE_AFTER_MS ? TRACKER_BALL_STALE_COLOR : TRACKER_BALL_LIVE_COLOR;
+  const status = getTelemetryStatus(position, now);
+  return status === "OFFLINE" || status === "NO_DATA" ? TRACKER_BALL_STALE_COLOR : TRACKER_BALL_LIVE_COLOR;
 }
