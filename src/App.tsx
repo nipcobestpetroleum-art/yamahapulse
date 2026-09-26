@@ -24,7 +24,6 @@ import AiReportPage from "./pages/reports/AiReportPage";
 import VehiclesPage from "./pages/vehicles/VehiclesPage";
 import DevicesPage from "./pages/devices/DevicesPage";
 import LiveTrackingPage from "./pages/fleet/LiveTrackingPage";
-import GodsEyePage from "./pages/fleet/GodsEyePage";
 import AssetDetailPage from "./pages/fleet/AssetDetailPage";
 import TrailHistoryPage from "./pages/fleet/TrailHistoryPage";
 import BatteryMonitoringPage from "./pages/assets/BatteryMonitoringPage";
@@ -131,7 +130,6 @@ const App = () => (
 
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
-              <Route path="/fleet/gods-eye" element={<GodsEyePage />} />
               <Route path="/fleet/live/:deviceId" element={<AssetDetailPage />} />
               <Route path="/fleet/trail" element={<TrailHistoryPage />} />
               <Route path="/fleet/drivers" element={<DriversPage />} />

@@ -25,7 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { useTracking } from "@/contexts/tracking-context";
+import { useLivePositions } from "@/hooks/use-live-positions";
 import { ENGINE_CONTROL_ROLES, hasAnyRole } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
@@ -77,7 +77,7 @@ export default function AssetDetailPage() {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
   const { currentOrg, currentRole, user } = useAuth();
-  const { positionsByDeviceId } = useTracking();
+  const { positionsByDeviceId } = useLivePositions(currentOrg?.id ?? null);
   const [device, setDevice] = useState<{ id: string; name: string; imei: string; engine_immobilized: boolean } | null>(null);
   const [vehicle, setVehicle] = useState<{ id: string; name: string; registration_number: string | null } | null>(null);
   const [history, setHistory] = useState<Position[]>([]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Car, Cpu, Menu, Orbit, Plus, Search } from "lucide-react";
+import { Car, Cpu, Menu, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -16,7 +16,6 @@ import { hasAnyRole } from "@/lib/roles";
 import { useAuth } from "@/contexts/auth-context";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { UserMenu } from "@/components/layout/user-menu";
-import { useTracking } from "@/contexts/tracking-context";
 
 interface AppHeaderProps {
   onOpenMobileNav: () => void;
@@ -25,7 +24,6 @@ interface AppHeaderProps {
 export function AppHeader({ onOpenMobileNav }: AppHeaderProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { currentRole } = useAuth();
-  const { mode, setMode } = useTracking();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -56,11 +54,6 @@ export function AppHeader({ onOpenMobileNav }: AppHeaderProps) {
       </Button>
 
       <OrgSwitcher />
-
-      <div className="hidden items-center rounded-xl border border-border bg-card/50 p-1 md:flex">
-        <button type="button" onClick={() => { setMode("normal"); navigate("/fleet/live"); }} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${mode === "normal" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Normal Tracking</button>
-        <button type="button" onClick={() => { setMode("gods-eye"); navigate("/fleet/gods-eye"); }} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${mode === "gods-eye" ? "bg-violet-500 text-white" : "text-muted-foreground hover:text-foreground"}`}><Orbit className="h-3.5 w-3.5" />God's Eye</button>
-      </div>
 
       <div className="flex-1" />
 

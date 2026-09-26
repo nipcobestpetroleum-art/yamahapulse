@@ -51,7 +51,7 @@ import { Badge } from "@/components/ui/badge";
 import { VehicleFormDialog } from "@/components/vehicles/vehicle-form-dialog";
 import { VehicleDetailSheet } from "@/components/vehicles/vehicle-detail-sheet";
 import { supabase } from "@/integrations/supabase/client";
-import { useTracking } from "@/contexts/tracking-context";
+import { useLivePositions } from "@/hooks/use-live-positions";
 import { getTelemetryStatus, TELEMETRY_STATUS_LABELS, TELEMETRY_STATUS_STYLES } from "@/lib/telemetry-status";
 import { useAuth } from "@/contexts/auth-context";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -68,7 +68,7 @@ export default function VehiclesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedStatus = searchParams.get("status");
   const initialStatus = requestedStatus === "ACTIVE" || requestedStatus === "INACTIVE" || requestedStatus === "MAINTENANCE" || requestedStatus === "DECOMMISSIONED" ? requestedStatus : "all";
-  const { positionsByDeviceId } = useTracking();
+  const { positionsByDeviceId } = useLivePositions(currentOrg?.id ?? null);
   const [deviceByVehicle, setDeviceByVehicle] = useState<Record<string, string>>({});
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);

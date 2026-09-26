@@ -35,7 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useEffect, useState as useReactState } from "react";
-import { useTracking } from "@/contexts/tracking-context";
+import { useLivePositions } from "@/hooks/use-live-positions";
 import { cn } from "@/lib/utils";
 import { LiveMapCanvas, type LiveMapVehicle } from "@/components/tracking/live-map-canvas";
 import {
@@ -111,7 +111,7 @@ export default function LiveTrackingPage() {
     error: positionsError,
     realtimeStatus,
     refetch,
-  } = useTracking();
+  } = useLivePositions(orgId);
 
   useEffect(() => {
     if (!orgId) return;

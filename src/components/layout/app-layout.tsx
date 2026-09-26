@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
-import { TrackingProvider } from "@/contexts/tracking-context";
 import { cn } from "@/lib/utils";
 
 const COLLAPSE_KEY = "yamahapulse.sidebarCollapsed";
@@ -16,8 +15,7 @@ export function AppLayout() {
   }, [collapsed]);
 
   return (
-    <TrackingProvider>
-      <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
       <AppSidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
@@ -30,7 +28,6 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
-      </div>
-    </TrackingProvider>
+    </div>
   );
 }

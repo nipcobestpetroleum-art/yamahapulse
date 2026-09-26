@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { useTracking } from "@/contexts/tracking-context";
+import { useLivePositions } from "@/hooks/use-live-positions";
 import { getMapboxPublicToken } from "@/lib/mapbox";
 import { MapboxMapCanvas } from "@/components/mapstudio/mapbox-map-canvas";
 import { FleetPanel } from "@/components/mapstudio/fleet-panel";
@@ -53,7 +53,7 @@ export default function MapStudioPage() {
   const [fitNonce, setFitNonce] = useState(0);
 
   const [assigned, setAssigned] = useState<AssignedVehicle[] | null>(null);
-  const { positionsByDeviceId } = useTracking();
+  const { positionsByDeviceId } = useLivePositions(orgId);
 
   useEffect(() => {
     getMapboxPublicToken()
