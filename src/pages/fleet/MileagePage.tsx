@@ -74,6 +74,7 @@ function isMoving(point: TelemetryPoint) {
 function buildDailyMetrics(points: TelemetryPoint[], year: number, month: number) {
   const grouped = new Map<string, TelemetryPoint[]>();
   for (const point of points) {
+    if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || (point.latitude === 0 && point.longitude === 0)) continue;
     const key = point.recorded_at.slice(0, 10);
     const day = grouped.get(key) ?? [];
     day.push(point);
@@ -93,7 +94,8 @@ function buildDailyMetrics(points: TelemetryPoint[], year: number, month: number
       const current = ordered[pointIndex];
       const gapMinutes = (new Date(current.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 60000;
       const segment = distanceBetween(previous, current);
-      if (gapMinutes <= 30 && segment < 10) distance += segment;
+      const calculatedSpeed = gapMinutes > 0 ? (segment / gapMinutes) * 60 : Infinity;
+      if (gapMinutes > 0 && gapMinutes <= 30 && segment < 10 && calculatedSpeed <= 140) distance += segment;
       if (isMoving(previous) && !isMoving(current)) stops += 1;
     }
     const battery = ordered.map((point) => point.battery_voltage_mv).filter((value): value is number => value !== null && value > 0);
@@ -117,7 +119,7 @@ function BatteryBars({ values }: { values: number[] }) {
     <div className="flex h-12 items-end gap-1.5">
       {(sample.length ? sample : [0, 0, 0, 0, 0, 0]).map((value, index) => {
         const height = value === 0 ? 24 : 26 + ((value - min) / Math.max(1, max - min)) * 20;
-        return <span key={`${value}-${index}`} className={cn("w-3 rounded-t-sm", value === 0 ? "bg-muted" : value < 48000 ? "bg-amber-400" : "bg-emerald-400")} style={{ height }} />;
+        return <span key={`${value}-${index}`} className={cn("w-3 rounded-t-sm", value === 0 ? "bg-muted" : value < 11500 ? "bg-amber-400" : "bg-emerald-400")} style={{ height }} />;
       })}
     </div>
   );
