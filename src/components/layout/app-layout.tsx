@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { cn } from "@/lib/utils";
 
 const COLLAPSE_KEY = "yamahapulse.sidebarCollapsed";
@@ -24,10 +25,11 @@ export function AppLayout() {
       />
       <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-[68px]" : "lg:pl-[264px]")}>
         <AppHeader onOpenMobileNav={() => setMobileOpen(true)} />
-        <main className="mx-auto w-full max-w-[1400px] p-4 lg:p-6">
+        <main className="mx-auto w-full max-w-[1400px] p-3 pb-28 sm:p-4 lg:p-6 lg:pb-6">
           <Outlet />
         </main>
       </div>
+      <MobileTabBar onOpenMore={() => setMobileOpen(true)} />
     </div>
   );
 }

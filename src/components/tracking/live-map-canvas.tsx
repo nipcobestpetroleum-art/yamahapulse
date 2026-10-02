@@ -1,11 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LocateFixed, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlatformMap } from "@/components/maps/platform-map";
 import { getTelemetryStatus, getTrackerBallColor, TELEMETRY_STATUS_LABELS } from "@/lib/telemetry-status";
 import { format } from "date-fns";
 import type { LatestPosition } from "@/types/database";
-import type { MapMarkerSpec, MapPolylineSpec } from "@/components/mapstudio/types";
+import type { MapMarkerSpec, MapPolylineSpec, ViewRequest } from "@/components/mapstudio/types";
 
 export interface LiveMapVehicle { key: string; deviceId: string; vehicleName: string; registration: string | null; position: LatestPosition; trail: [number, number][]; }
 interface Props { vehicles: LiveMapVehicle[]; selectedKey: string | null; onSelectVehicle: (key: string) => void; }
@@ -21,6 +21,8 @@ function trailBearing(points: [number, number][]) {
 }
 
 export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: Props) {
+  const [locateRequest, setLocateRequest] = useState<ViewRequest | null>(null);
+
   const markers = useMemo<MapMarkerSpec[]>(() => {
     const liveMarkers = vehicles.filter((vehicle) => Number.isFinite(vehicle.position.latitude) && Number.isFinite(vehicle.position.longitude) && !(vehicle.position.latitude === 0 && vehicle.position.longitude === 0)).map((vehicle) => {
       const status = getTelemetryStatus(vehicle.position);
@@ -39,6 +41,21 @@ export function LiveMapCanvas({ vehicles, selectedKey, onSelectVehicle }: Props)
     });
     return [...liveMarkers, ...trailMarkers];
   }, [vehicles, selectedKey]);
-  const polylines = useMemo<MapPolylineSpec[]>(() => vehicles.filter((vehicle) => vehicle.trail.length > 1).map((vehicle) => ({ id: `trail:${vehicle.key}`, points: vehicle.trail, color: vehicle.key === selectedKey ? "#34d399" : "#60a5fa", weight: vehicle.key === selectedKey ? 5 : 3, opacity: vehicle.key === selectedKey ? 0.9 : 0.45 })), [vehicles, selectedKey]);
-  return <div className="relative overflow-hidden rounded-xl border border-border bg-card/40"><PlatformMap markers={markers} polylines={polylines} selectedMarkerId={selectedKey} onMarkerClick={onSelectVehicle} heightClass="h-[520px] w-full lg:h-[560px]" /><div className="pointer-events-none absolute left-3 top-3 flex gap-2"><div className="pointer-events-auto rounded-lg border border-border bg-background/75 px-3 py-2 text-xs font-medium backdrop-blur">Mapbox · {markers.length} tracked</div><Button variant="outline" size="sm" className="pointer-events-auto bg-background/75 backdrop-blur" onClick={() => document.querySelector(".mapboxgl-map")?.scrollIntoView({ behavior: "smooth", block: "center" })}><Maximize2 className="mr-2 h-4 w-4" />Focus map</Button><Button variant="outline" size="icon" className="pointer-events-auto bg-background/75 backdrop-blur" title="Locate me" onClick={() => navigator.geolocation?.getCurrentPosition(() => undefined)}><LocateFixed className="h-4 w-4" /></Button></div></div>;
+
+  const polylines = useMemo<MapPolylineSpec[]>(() => vehicles.filter((vehicle) => vehicle.trail.length > 1).map((vehicle) => {
+    const isSelected = vehicle.key === selectedKey;
+    const isMoving = getTelemetryStatus(vehicle.position) === "MOVING";
+    return { id: `trail:${vehicle.key}`, points: vehicle.trail, color: isSelected ? "#34d399" : "#60a5fa", weight: isSelected ? 5 : 3, opacity: isSelected ? 0.9 : 0.45, threeD: isSelected || isMoving };
+  }), [vehicles, selectedKey]);
+
+  const locate = () => navigator.geolocation?.getCurrentPosition((position) => setLocateRequest({ lat: position.coords.latitude, lng: position.coords.longitude, zoom: 15, nonce: Date.now() }), undefined, { enableHighAccuracy: true, timeout: 8000 });
+
+  return <div className="relative overflow-hidden rounded-xl border border-border bg-card/40">
+    <PlatformMap markers={markers} polylines={polylines} selectedMarkerId={selectedKey} onMarkerClick={onSelectVehicle} defaultPitch={50} hideControls viewRequest={locateRequest} heightClass="h-[62dvh] min-h-[380px] w-full lg:h-[560px]" />
+    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex flex-wrap items-center justify-center gap-2">
+      <div className="pointer-events-auto rounded-lg border border-border bg-background/80 px-3 py-2 text-xs font-medium backdrop-blur">Mapbox · {vehicles.length} tracked</div>
+      <Button variant="outline" size="sm" className="pointer-events-auto bg-background/80 backdrop-blur" onClick={() => document.querySelector(".mapboxgl-map")?.scrollIntoView({ behavior: "smooth", block: "center" })}><Maximize2 className="mr-2 h-4 w-4" />Focus map</Button>
+      <Button variant="outline" size="sm" className="pointer-events-auto bg-background/80 backdrop-blur" onClick={locate}><LocateFixed className="mr-2 h-4 w-4" />GPS</Button>
+    </div>
+  </div>;
 }

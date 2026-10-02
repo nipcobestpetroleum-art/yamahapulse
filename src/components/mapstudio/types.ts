@@ -21,6 +21,8 @@ export interface MapPolylineSpec {
   weight?: number;
   dashed?: boolean;
   opacity?: number;
+  /** Render an extruded 3D ribbon with directional arrowheads along the trail. */
+  threeD?: boolean;
 }
 
 export interface MapHeatPoint {

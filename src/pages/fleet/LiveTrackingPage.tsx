@@ -52,6 +52,9 @@ interface AssignedDevice {
   vehicleName: string;
   registration: string | null;
   vehicleStatus: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | "DECOMMISSIONED";
+  driverName: string | null;
+  driverPhone: string | null;
+  driverAvatar: string | null;
 }
 
 interface TrailLog {
@@ -123,7 +126,7 @@ export default function LiveTrackingPage() {
           `
           device_id,
           device:gps_devices!device_assignments_device_id_fkey(id,name,imei,status),
-          vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number,status)
+          vehicle:vehicles!device_assignments_vehicle_id_fkey(id,name,registration_number,status,drivers(id,name,phone,avatar_url))
         `,
         )
         .eq("organization_id", orgId)
@@ -143,6 +146,7 @@ export default function LiveTrackingPage() {
           name: string;
           registration_number: string | null;
           status: AssignedDevice["vehicleStatus"];
+          drivers: { id: string; name: string; phone: string | null; avatar_url: string | null }[] | null;
         } | null;
       }[];
 
@@ -156,6 +160,9 @@ export default function LiveTrackingPage() {
           vehicleName: r.vehicle!.name,
           registration: r.vehicle!.registration_number,
           vehicleStatus: r.vehicle!.status,
+          driverName: r.vehicle!.drivers?.[0]?.name ?? null,
+          driverPhone: r.vehicle!.drivers?.[0]?.phone ?? null,
+          driverAvatar: r.vehicle!.drivers?.[0]?.avatar_url ?? null,
         }));
 
       setAssigned(mapped);
@@ -173,6 +180,9 @@ export default function LiveTrackingPage() {
       vehicleName: a.vehicleName,
       registration: a.registration,
       vehicleStatus: a.vehicleStatus,
+      driverName: a.driverName,
+      driverPhone: a.driverPhone,
+      driverAvatar: a.driverAvatar,
     }));
   }, [assigned]);
 
@@ -419,8 +429,8 @@ export default function LiveTrackingPage() {
                   className="bg-card/60 pl-9"
                 />
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Filter className="h-3.5 w-3.5" />Bike</span><select value={selectedBike} onChange={(e) => setSelectedBike(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-background/60 px-2 text-xs text-foreground"><option value="ALL">All bikes</option>{vehiclesToTrack.map((vehicle) => <option key={vehicle.deviceId} value={vehicle.deviceId}>{vehicle.vehicleName}</option>)}</select></label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <label className="col-span-2 space-y-1 text-xs text-muted-foreground sm:col-span-1"><span className="flex items-center gap-1"><Filter className="h-3.5 w-3.5" />Bike</span><select value={selectedBike} onChange={(e) => setSelectedBike(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-background/60 px-2 text-xs text-foreground"><option value="ALL">All bikes</option>{vehiclesToTrack.map((vehicle) => <option key={vehicle.deviceId} value={vehicle.deviceId}>{vehicle.vehicleName}</option>)}</select></label>
                 <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />From</span><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 bg-background/60 text-xs" /></label>
                 <label className="space-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />To</span><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 bg-background/60 text-xs" /></label>
               </div>
@@ -471,11 +481,35 @@ export default function LiveTrackingPage() {
               No tracked assets match your search.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border bg-card/60">
+            <div className="space-y-3 md:hidden">
+              {filtered.map((v) => {
+                const pos = positionsByDeviceId[v.deviceId];
+                const status = statusByDevice[v.deviceId];
+                return (
+                  <MobileAssetCard
+                    key={v.key}
+                    vehicle={v}
+                    selected={effectiveSelectedKey === v.key}
+                    speed={pos?.speed ?? null}
+                    ignition={pos?.ignition ?? null}
+                    recordedAt={pos?.recorded_at ?? null}
+                    statusLabel={TELEMETRY_STATUS_LABELS[status]}
+                    onSelect={() => {
+                      setSelectedKey(v.key);
+                      navigate(`/fleet/live/${v.deviceId}`);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+          {vehiclesToTrack.length > 0 && filtered.length > 0 && (
+            <div className="hidden overflow-hidden rounded-xl border border-border bg-card/60 md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Vehicle</TableHead>
+                    <TableHead className="hidden md:table-cell">Driver</TableHead>
                     <TableHead className="hidden md:table-cell">Device</TableHead>
                     <TableHead className="hidden lg:table-cell">Speed</TableHead>
                     <TableHead className="hidden lg:table-cell">Ignition</TableHead>
@@ -513,6 +547,21 @@ export default function LiveTrackingPage() {
                               <p className="text-xs text-muted-foreground">
                                 {v.registration ?? "—"}
                               </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="flex items-center gap-2.5">
+                            <DriverAvatar name={v.driverName} url={v.driverAvatar} />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm">{v.driverName ?? "Not assigned"}</p>
+                              {v.driverPhone ? (
+                                <a href={`tel:${v.driverPhone}`} onClick={(e) => e.stopPropagation()} className="text-xs text-primary hover:underline">
+                                  {v.driverPhone}
+                                </a>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </div>
                           </div>
                         </TableCell>
@@ -591,5 +640,73 @@ export default function LiveTrackingPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function DriverAvatar({ name, url, size = "h-9 w-9" }: { name: string | null; url: string | null; size?: string }) {
+  if (url) return <img src={url} alt={name ?? "Driver"} className={`${size} shrink-0 rounded-full border border-border object-cover`} />;
+  const initials = (name ?? "").split(/\s+/).map((part) => part[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  return <div className={`${size} flex shrink-0 items-center justify-center rounded-full border border-border bg-primary/15 text-[11px] font-bold text-primary`}>{initials || "·"}</div>;
+}
+
+function statusBadgeClass(label: string) {
+  return cn(
+    "font-medium",
+    label === "Moving" && "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
+    label === "Idling" && "border-sky-500/25 bg-sky-500/10 text-sky-400",
+    label === "Stopped" && "border-amber-500/25 bg-amber-500/10 text-amber-400",
+    label === "Offline" && "border-slate-500/25 bg-slate-500/10 text-slate-400",
+  );
+}
+
+interface MobileAssetCardProps {
+  vehicle: { vehicleName: string; registration: string | null; deviceName: string; driverName: string | null; driverPhone: string | null; driverAvatar: string | null };
+  selected: boolean;
+  speed: number | null;
+  ignition: boolean | null;
+  recordedAt: string | null;
+  statusLabel: string;
+  onSelect: () => void;
+}
+
+function MobileAssetCard({ vehicle, selected, speed, ignition, recordedAt, statusLabel, onSelect }: MobileAssetCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn("w-full rounded-2xl border p-4 text-left transition active:scale-[0.99]", selected ? "border-primary/50 bg-primary/5" : "border-border bg-card/60")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+            <Car className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{vehicle.vehicleName}</p>
+            <p className="truncate text-xs text-muted-foreground">{vehicle.registration ?? "—"} · {vehicle.deviceName}</p>
+          </div>
+        </div>
+        <Badge variant="outline" className={statusBadgeClass(statusLabel)}>{statusLabel}</Badge>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <DriverAvatar name={vehicle.driverName} url={vehicle.driverAvatar} size="h-8 w-8" />
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium">{vehicle.driverName ?? "No driver assigned"}</p>
+            {vehicle.driverPhone ? (
+              <a href={`tel:${vehicle.driverPhone}`} onClick={(e) => e.stopPropagation()} className="text-xs text-primary hover:underline">
+                {vehicle.driverPhone}
+              </a>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 text-right text-[11px] leading-relaxed text-muted-foreground">
+          <p>{speed != null ? `${Math.round(speed)} km/h` : "—"} · {ignition == null ? "—" : ignition ? "Ign on" : "Ign off"}</p>
+          <p>{recordedAt ? format(new Date(recordedAt), "dd MMM HH:mm") : "No data"}</p>
+        </div>
+      </div>
+    </button>
   );
 }

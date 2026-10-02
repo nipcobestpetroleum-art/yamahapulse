@@ -17,9 +17,13 @@ interface PlatformMapProps {
   viewRequest?: ViewRequest | null;
   fitNonce?: number;
   onViewChange?: (view: { lat: number; lng: number; zoom: number }) => void;
+  /** Initial map pitch in degrees — use ~50 for an immediate 3D perspective. */
+  defaultPitch?: number;
+  /** Hide the built-in bottom control dock when the host renders its own. */
+  hideControls?: boolean;
 }
 
-export function PlatformMap({ markers = [], polylines = [], heatPoints = [], clusterMarkers = false, heightClass, selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange }: PlatformMapProps) {
+export function PlatformMap({ markers = [], polylines = [], heatPoints = [], clusterMarkers = false, heightClass, selectedMarkerId, onMarkerClick, onMapClick, viewRequest, fitNonce, onViewChange, defaultPitch, hideControls }: PlatformMapProps) {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,5 +34,5 @@ export function PlatformMap({ markers = [], polylines = [], heatPoints = [], clu
   if (error) return <Card className="flex min-h-[220px] items-center justify-center border-amber-500/25 bg-amber-500/5 p-6 text-center text-sm text-amber-300">{error}</Card>;
   if (!token) return <Card className={`flex ${heightClass ?? "min-h-[280px]"} items-center justify-center border-border bg-card/40`}><Loader2 className="h-5 w-5 animate-spin text-primary" /></Card>;
 
-  return <MapboxMapCanvas token={token} markers={markers} polylines={polylines} heatPoints={heatPoints} clusterMarkers={clusterMarkers} selectedMarkerId={selectedMarkerId} onMarkerClick={onMarkerClick} onMapClick={onMapClick} viewRequest={viewRequest} fitNonce={fitNonce} onViewChange={onViewChange} heightClass={heightClass ?? "h-[420px] w-full md:h-[540px]"} />;
+  return <MapboxMapCanvas token={token} markers={markers} polylines={polylines} heatPoints={heatPoints} clusterMarkers={clusterMarkers} selectedMarkerId={selectedMarkerId} onMarkerClick={onMarkerClick} onMapClick={onMapClick} viewRequest={viewRequest} fitNonce={fitNonce} onViewChange={onViewChange} defaultPitch={defaultPitch} hideControls={hideControls} heightClass={heightClass ?? "h-[420px] w-full md:h-[540px]"} />;
 }
