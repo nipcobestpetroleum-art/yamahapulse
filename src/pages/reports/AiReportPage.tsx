@@ -17,6 +17,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  Route,
   Satellite,
   Signal,
   Smartphone,
@@ -111,6 +112,11 @@ interface VehicleRow {
   odometer: number | null;
 }
 
+interface DailyDistance {
+  day: string;
+  distanceKm: number;
+}
+
 interface ReportData {
   device: DeviceRow;
   latest: LatestPosition | null;
@@ -119,6 +125,8 @@ interface ReportData {
   todayTrips: Trip[];
   todayEvents: DeviceEvent[];
   lastIgnitionOff: DeviceEvent | null;
+  dailyDistances: DailyDistance[];
+  todayPositionDistance: number;
 }
 
 function fmtCoords(p: Pick<Position, "latitude" | "longitude">, precision = 5): string {
@@ -142,6 +150,18 @@ function operatorLabel(op: number | null | undefined): string | null {
   if (op === null || op === undefined) return null;
   const s = String(op).padStart(5, "0");
   return `${s.slice(0, 3)}-${s.slice(3)}`;
+}
+
+function distanceBetweenKm(a: Pick<Position, "latitude" | "longitude">, b: Pick<Position, "latitude" | "longitude">) {
+  const radians = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * radians;
+  const dLng = (b.longitude - a.longitude) * radians;
+  const haversine = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * radians) * Math.cos(b.latitude * radians) * Math.sin(dLng / 2) ** 2;
+  return (6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)));
+}
+
+function distanceFromPositions(points: Position[]) {
+  return points.reduce((total, point, index) => index === 0 ? 0 : total + distanceBetweenKm(points[index - 1], point), 0);
 }
 
 /** A row in the hero/health cards. Hidden gracefully when value is null. */
@@ -202,7 +222,8 @@ export default function AiReportPage() {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [deviceRes, latestRes, assignmentRes] = await Promise.all([
+    const sevenDaysAgo = new Date(startOfDay.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const [deviceRes, latestRes, assignmentRes, dailyPositionsRes] = await Promise.all([
       supabase
         .from("gps_devices")
         .select("id, imei, name, status, last_seen_at, device_model:device_models(manufacturer, model)")
@@ -215,6 +236,14 @@ export default function AiReportPage() {
         .eq("device_id", deviceId)
         .is("unassigned_at", null)
         .maybeSingle(),
+      supabase
+        .from("positions")
+        .select("latitude,longitude,recorded_at")
+        .eq("organization_id", currentOrg.id)
+        .eq("device_id", deviceId)
+        .gte("recorded_at", sevenDaysAgo.toISOString())
+        .order("recorded_at", { ascending: true })
+        .limit(10000),
     ]);
 
     const error = deviceRes.error ?? latestRes.error ?? assignmentRes.error;
@@ -284,6 +313,14 @@ export default function AiReportPage() {
       const payload = geocode as { addresses?: Record<string, string>; placeNames?: Record<string, string> } | null;
       latest = { ...latest, address: payload?.addresses?.[deviceId] ?? null, place_name: payload?.placeNames?.[deviceId] ?? null };
     }
+    const dailyPoints = ((dailyPositionsRes.data ?? []) as unknown as Position[]).filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && (point.latitude !== 0 || point.longitude !== 0));
+    const dailyGroups = new Map<string, Position[]>();
+    for (const point of dailyPoints) {
+      const day = point.recorded_at.slice(0, 10);
+      dailyGroups.set(day, [...(dailyGroups.get(day) ?? []), point]);
+    }
+    const dailyDistances = [...dailyGroups.entries()].map(([day, points]) => ({ day, distanceKm: distanceFromPositions(points) }));
+    const todayPoints = dailyPoints.filter((point) => new Date(point.recorded_at).getTime() >= startOfDay.getTime());
     setData({
       device,
       latest,
@@ -292,6 +329,8 @@ export default function AiReportPage() {
       todayTrips: (todayTripsRes.data ?? []) as unknown as Trip[],
       todayEvents: (todayEventsRes.data ?? []) as unknown as DeviceEvent[],
       lastIgnitionOff: (ignitionOffRes.data ?? null) as unknown as DeviceEvent | null,
+      dailyDistances,
+      todayPositionDistance: distanceFromPositions(todayPoints),
     });
     setLoading(false);
   }, [currentOrg, deviceId, eventPage]);
@@ -356,8 +395,8 @@ export default function AiReportPage() {
     const runningMinutes = open ? (now - new Date(open.start_time).getTime()) / 60_000 : 0;
 
     const completed = data.todayTrips.filter((t) => t.status === "COMPLETED");
-    const todayDistance =
-      completed.reduce((sum, t) => sum + (t.distance_km ?? 0), 0) + runningDistance;
+    const tripDistance = completed.reduce((sum, t) => sum + (t.distance_km ?? 0), 0) + runningDistance;
+    const todayDistance = data.todayPositionDistance > 0 ? data.todayPositionDistance : tripDistance;
     const todayMinutes =
       completed.reduce((sum, t) => sum + (tripDurationMinutes(t.start_time, t.end_time) ?? 0), 0) +
       runningMinutes;
@@ -636,7 +675,7 @@ export default function AiReportPage() {
             <Card className="border-border bg-card/60">
               <CardHeader className="pb-1 pt-4">
                 <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <Timer className="h-4 w-4 text-primary" /> Today
+                  <Timer className="h-4 w-4 text-primary" /> Km traveled today
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -651,15 +690,23 @@ export default function AiReportPage() {
                   {analytics && analytics.stopCount > 0 && (
                     <span className="text-muted-foreground">{analytics.stopCount} stops</span>
                   )}
-                  {data.openTrip && (
-                    <span className="font-medium text-sky-400">
-                      Trip in progress — {analytics!.runningDistance.toFixed(1)} km so far
-                    </span>
-                  )}
+                  <span className="font-medium text-sky-400">Km traveled so far · {analytics?.todayDistance.toFixed(1) ?? "0.0"} km</span>
+                  {data.openTrip && <span className="text-muted-foreground">Current trip: {analytics!.runningDistance.toFixed(1)} km</span>}
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-border bg-card/60">
+            <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Route className="h-4 w-4 text-primary" />Daily kilometres</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {data.dailyDistances.length === 0 ? <p className="text-sm text-muted-foreground">No valid GPS route points are available for the last seven days.</p> : data.dailyDistances.map((item) => {
+                const maxDistance = Math.max(...data.dailyDistances.map((entry) => entry.distanceKm), 1);
+                return <div key={item.day} className="grid grid-cols-[82px_1fr_62px] items-center gap-3 text-xs"><span className="text-muted-foreground">{format(new Date(`${item.day}T12:00:00`), "dd MMM")}</span><div className="h-2.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(item.distanceKm > 0 ? 3 : 0, (item.distanceKm / maxDistance) * 100)}%` }} /></div><span className="text-right font-semibold">{item.distanceKm.toFixed(1)} km</span></div>;
+              })}
+              <p className="text-[11px] text-muted-foreground">Distance is calculated from consecutive valid GPS points. “Km traveled so far” uses the current day&apos;s route, including the active trip.</p>
+            </CardContent>
+          </Card>
 
           {/* ============ AI INSIGHT ============ */}
           <Card className="border-primary/25 bg-primary/5">

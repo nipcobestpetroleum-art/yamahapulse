@@ -63,9 +63,13 @@ function buildTrail3dData(lines: MapPolylineSpec[]) {
     if (!line.threeD || line.points.length < 2) continue;
     const color = line.color ?? "#6366f1";
     const halfWidth = (line.weight ?? 4) * 0.35 + 0.9;
-    for (let i = 0; i < line.points.length - 1; i += 1) {
-      const a = line.points[i];
-      const b = line.points[i + 1];
+    // Keep the 3D mesh light enough for mobile GPUs while retaining the full 2D line underneath.
+    const points = line.points.length > 180
+      ? Array.from({ length: 180 }, (_, index) => line.points[Math.floor(index * (line.points.length - 1) / 179)])
+      : line.points;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const a = points[i];
+      const b = points[i + 1];
       const bearing = bearingBetween(a, b);
       const la = offsetMeters(a[0], a[1], bearing + 90, halfWidth);
       const ra = offsetMeters(a[0], a[1], bearing - 90, halfWidth);
@@ -73,8 +77,8 @@ function buildTrail3dData(lines: MapPolylineSpec[]) {
       const rb = offsetMeters(b[0], b[1], bearing - 90, halfWidth);
       features.push({ type: "Feature", properties: { kind: "ribbon", color, height: 2.4 }, geometry: { type: "Polygon", coordinates: [[[la[1], la[0]], [lb[1], lb[0]], [rb[1], rb[0]], [ra[1], ra[0]], [la[1], la[0]]]] } });
     }
-    for (let i = 10; i < line.points.length; i += 18) pushArrow(line.points, i, color);
-    pushArrow(line.points, line.points.length - 1, color);
+    for (let i = 10; i < points.length; i += 18) pushArrow(points, i, color);
+    pushArrow(points, points.length - 1, color);
   }
   return { type: "FeatureCollection" as const, features };
 }
@@ -123,7 +127,15 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], cl
       map.addControl(new mapboxgl.FullscreenControl(), "top-right");
       map.on("load", () => {
         if (!map.getSource("mapbox-dem")) map.addSource("mapbox-dem", { type: "raster-dem", url: "mapbox://mapbox.mapbox-terrain-dem-v1", tileSize: 512, maxzoom: 14 });
+        requestAnimationFrame(() => map.resize());
         setStatus("ready");
+      });
+      map.on("error", (event) => {
+        const message = event.error?.message;
+        if (message) {
+          setErrorText(message);
+          setStatus("error");
+        }
       });
       map.on("style.load", () => {
         setStyleRevision((revision) => revision + 1);
@@ -147,7 +159,14 @@ export function MapboxMapCanvas({ token, markers, polylines, heatPoints = [], cl
       setStatus("error");
       setErrorText(error instanceof Error ? error.message : "Failed to load Mapbox");
     });
-    return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
+    const resizeObserver = new ResizeObserver(() => mapRef.current?.resize());
+    resizeObserver.observe(containerRef.current);
+    return () => {
+      cancelled = true;
+      resizeObserver.disconnect();
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
   }, [token]);
 
   useEffect(() => {

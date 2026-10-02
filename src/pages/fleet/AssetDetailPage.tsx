@@ -181,7 +181,7 @@ export default function AssetDetailPage() {
       <Card className="overflow-hidden border-border bg-card/40">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-sm font-semibold"><Route className="h-4 w-4 text-emerald-400" />Today’s route · {route.length} valid points</CardTitle><Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">{trailEntries.length} addressed points</Badge></CardHeader>
         <CardContent className="p-0">
-          <div className="h-[380px] overflow-hidden border-t border-border sm:h-[500px]"><AssetRouteMapbox route={route} currentPosition={currentPosition} /></div>
+          <div className="h-[380px] min-h-[380px] overflow-hidden border-t border-border sm:h-[500px] sm:min-h-[500px]"><AssetRouteMapbox route={route} currentPosition={currentPosition} /></div>
           <div className="border-t border-border p-4">
             <p className="mb-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground"><MapPin className="h-3.5 w-3.5" />Address trail · dots and direction of travel</p>
             <AddressTimeline entries={trailEntries} />
