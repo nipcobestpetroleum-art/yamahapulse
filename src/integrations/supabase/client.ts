@@ -7,4 +7,10 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_j2IiuJTttDQd3av6jgy5ig_WLpaOb9P
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+    },
+  },
+});
