@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { RequireAuth } from "@/components/auth/require-auth";
+import { RequireRoles } from "@/components/auth/require-roles";
 import { AppLayout } from "@/components/layout/app-layout";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
@@ -111,22 +112,24 @@ const App = () => (
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
-              <Route path="/finance/dashboard" element={<FinanceDashboardPage />} />
-              <Route path="/finance/sales" element={<SalesPage />} />
-              <Route path="/finance/contracts" element={<ContractsPage />} />
-              <Route path="/finance/contracts/:contractId" element={<ContractDetailPage />} />
-              <Route path="/finance/hire-purchase-application" element={<HirePurchaseApplicationPage />} />
-              <Route path="/finance/payments" element={<PaymentsPage />} />
-              <Route path="/finance/affiliates" element={<AffiliatesPage />} />
-              <Route path="/finance/collections" element={<CollectionsPage />} />
-              <Route path="/finance/billing" element={<PlatformModulesPage />} />
-              <Route path="/finance/wallet" element={<PlatformModulesPage />} />
-              <Route path="/finance/invoices" element={<PlatformModulesPage />} />
-              <Route path="/finance/subscriptions" element={<PlatformModulesPage />} />
+              <Route element={<RequireRoles />}>
+                <Route path="/finance/dashboard" element={<FinanceDashboardPage />} />
+                <Route path="/finance/sales" element={<SalesPage />} />
+                <Route path="/finance/contracts" element={<ContractsPage />} />
+                <Route path="/finance/contracts/:contractId" element={<ContractDetailPage />} />
+                <Route path="/finance/hire-purchase-application" element={<HirePurchaseApplicationPage />} />
+                <Route path="/finance/payments" element={<PaymentsPage />} />
+                <Route path="/finance/affiliates" element={<AffiliatesPage />} />
+                <Route path="/finance/collections" element={<CollectionsPage />} />
+                <Route path="/finance/billing" element={<PlatformModulesPage />} />
+                <Route path="/finance/wallet" element={<PlatformModulesPage />} />
+                <Route path="/finance/invoices" element={<PlatformModulesPage />} />
+                <Route path="/finance/subscriptions" element={<PlatformModulesPage />} />
+              </Route>
               <Route path="/ai-report" element={<AiReportPage />} />
               <Route path="/vehicles" element={<VehiclesPage />} />
               <Route path="/devices" element={<DevicesPage />} />
-              <Route path="/assets/battery" element={<BatteryMonitoringPage />} />
+              <Route path="/assets/battery" element={<RequireRoles><BatteryMonitoringPage /></RequireRoles>} />
 
               {/* Phase 2 */}
               <Route path="/fleet/live" element={<LiveTrackingPage />} />
@@ -168,34 +171,38 @@ const App = () => (
               <Route path="/maintenance/tires" element={<TiresPage />} />
               <Route path="/maintenance/documents" element={<DocumentsPage />} />
               <Route path="/maintenance/intervals" element={<MaintenanceIntervalsPage />} />
-              <Route path="/video/cameras" element={<CamerasPage />} />
-              <Route path="/video/live" element={<LiveVideoPage />} />
-              <Route path="/video/events" element={<VideoEventsPage />} />
-              <Route path="/video/ai-events" element={<AiEventsPage />} />
-              <Route path="/assets/sims" element={<SimCardsPage />} />
-              <Route path="/assets/sensors" element={<SensorsPage />} />
-              <Route path="/assets/inventory" element={<InventoryPage />} />
-              <Route path="/assets/technicians" element={<TechniciansPage />} />
+              <Route element={<RequireRoles />}>
+                <Route path="/video/cameras" element={<CamerasPage />} />
+                <Route path="/video/live" element={<LiveVideoPage />} />
+                <Route path="/video/events" element={<VideoEventsPage />} />
+                <Route path="/video/ai-events" element={<AiEventsPage />} />
+                <Route path="/assets/sims" element={<SimCardsPage />} />
+                <Route path="/assets/sensors" element={<SensorsPage />} />
+                <Route path="/assets/inventory" element={<InventoryPage />} />
+                <Route path="/assets/technicians" element={<TechniciansPage />} />
+              </Route>
 
               {/* Admin */}
-              <Route path="/admin/users" element={<UsersPage />} />
-              <Route path="/admin/user-asset-access" element={<UserAssetAccessPage />} />
-              <Route path="/admin/organization" element={<OrganizationPage />} />
-              <Route path="/admin/organizations" element={<OrganizationsOverviewPage />} />
-              <Route path="/admin/branches" element={<BranchesPage />} />
-              <Route path="/admin/system-health" element={<SystemHealthPage />} />
-              <Route path="/admin/roles" element={<PlatformModulesPage />} />
-              <Route path="/admin/api-keys" element={<PlatformModulesPage />} />
-              <Route path="/admin/integrations" element={<PlatformModulesPage />} />
-              <Route path="/admin/settings" element={<OrganizationPage />} />
+              <Route element={<RequireRoles roles={["SUPER_ADMIN", "ORGANIZATION_ADMIN"]} />}>
+                <Route path="/admin/users" element={<UsersPage />} />
+                <Route path="/admin/user-asset-access" element={<UserAssetAccessPage />} />
+                <Route path="/admin/organization" element={<OrganizationPage />} />
+                <Route path="/admin/organizations" element={<OrganizationsOverviewPage />} />
+                <Route path="/admin/branches" element={<BranchesPage />} />
+                <Route path="/admin/system-health" element={<SystemHealthPage />} />
+                <Route path="/admin/roles" element={<PlatformModulesPage />} />
+                <Route path="/admin/api-keys" element={<PlatformModulesPage />} />
+                <Route path="/admin/integrations" element={<PlatformModulesPage />} />
+                <Route path="/admin/settings" element={<OrganizationPage />} />
+              </Route>
 
               {/* Other placeholders remain */}
               <Route path="/fleet/*" element={<PlaceholderPage />} />
               <Route path="/monitoring/*" element={<PlaceholderPage />} />
               <Route path="/fuel/*" element={<PlaceholderPage />} />
               <Route path="/operations/*" element={<PlaceholderPage />} />
-              <Route path="/finance/*" element={<PlaceholderPage />} />
-              <Route path="/admin/*" element={<PlaceholderPage />} />
+              <Route path="/finance/*" element={<RequireRoles><PlaceholderPage /></RequireRoles>} />
+              <Route path="/admin/*" element={<RequireRoles roles={["SUPER_ADMIN", "ORGANIZATION_ADMIN"]}><PlaceholderPage /></RequireRoles>} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

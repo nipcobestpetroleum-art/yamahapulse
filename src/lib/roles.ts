@@ -16,6 +16,19 @@ export const ROLE_LABELS: Record<RoleName, string> = {
 export const ADMIN_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN"];
 export const FINANCE_ROLES: RoleName[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "ACCOUNTANT"];
 
+/** Roles with full, org-wide visibility. VIEWER accounts are asset-scoped to their assigned bikes only. */
+export const FULL_ACCESS_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "RESELLER_ADMIN",
+  "ORGANIZATION_ADMIN",
+  "BRANCH_MANAGER",
+  "FLEET_MANAGER",
+  "DISPATCHER",
+  "DRIVER_MANAGER",
+  "TECHNICIAN",
+  "ACCOUNTANT",
+];
+
 export const VEHICLE_WRITE_ROLES: RoleName[] = [
   "SUPER_ADMIN",
   "ORGANIZATION_ADMIN",

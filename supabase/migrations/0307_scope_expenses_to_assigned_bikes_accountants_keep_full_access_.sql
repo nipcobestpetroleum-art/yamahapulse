@@ -1,0 +1,1 @@
+ALTER POLICY expenses_select ON public.expenses USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','ACCOUNTANT']) OR ((vehicle_id IS NOT NULL) AND user_can_access_asset(organization_id, NULL::uuid, vehicle_id)))

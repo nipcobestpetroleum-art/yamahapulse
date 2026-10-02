@@ -1,0 +1,1 @@
+ALTER POLICY fuel_sensors_select ON public.fuel_sensors USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER']) OR user_can_access_asset(organization_id, device_id, vehicle_id))

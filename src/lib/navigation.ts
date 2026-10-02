@@ -49,7 +49,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { RoleName } from "@/types/database";
-import { ADMIN_ROLES, FINANCE_ROLES } from "@/lib/roles";
+import { ADMIN_ROLES, FINANCE_ROLES, FULL_ACCESS_ROLES } from "@/lib/roles";
 
 export interface NavItem {
   title: string;
@@ -144,6 +144,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Video Telematics",
     icon: Camera,
+    roles: FULL_ACCESS_ROLES,
     items: [
       { title: "Cameras", href: "/video/cameras", icon: Camera, implemented: true },
       { title: "Live Video", href: "/video/live", icon: Play, implemented: true },
@@ -154,6 +155,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Assets",
     icon: Package,
+    roles: FULL_ACCESS_ROLES,
     items: [
       { title: "GPS Devices", href: "/devices", icon: Cpu, implemented: true },
       { title: "Battery Monitoring", href: "/assets/battery", icon: Battery, implemented: true },

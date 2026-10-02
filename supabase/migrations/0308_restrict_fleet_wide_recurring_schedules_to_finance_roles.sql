@@ -1,0 +1,1 @@
+ALTER POLICY recurring_expenses_select ON public.recurring_expenses USING (has_org_role(organization_id, ARRAY['SUPER_ADMIN','ORGANIZATION_ADMIN','BRANCH_MANAGER','FLEET_MANAGER','ACCOUNTANT']))
