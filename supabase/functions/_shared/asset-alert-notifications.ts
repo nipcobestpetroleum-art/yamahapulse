@@ -47,10 +47,9 @@ export async function sendAssignedAssetMovementEmails(
     const { data: authUser } = await supabase.auth.admin.getUserById(row.user_id);
     if (authUser.user?.email) recipients.set(authUser.user.email.toLowerCase(), row.user_id);
   }
-  const { data: organization } = await supabase.from("organizations").select("alert_emails").eq("id", organizationId).maybeSingle();
-  for (const email of (organization?.alert_emails ?? []) as string[]) {
-    if (typeof email === "string" && email.includes("@")) recipients.set(email.toLowerCase(), "");
-  }
+  // Asset notifications are intentionally limited to users explicitly assigned
+  // to this device/vehicle. Organization-wide alert_emails are not included:
+  // they would leak one bike's movement into unrelated recipients' inboxes.
   if (recipients.size === 0) return;
   const { data: vehicle } = vehicleId
     ? await supabase.from("vehicles").select("name,registration_number").eq("id", vehicleId).maybeSingle()
@@ -59,6 +58,18 @@ export async function sendAssignedAssetMovementEmails(
 
   for (const [email, userId] of recipients) {
     if (userId) {
+      const cooldownSince = new Date(Date.now() - 5 * 60_000).toISOString();
+      const { data: recentDelivery, error: recentDeliveryError } = await supabase
+        .from("asset_movement_email_deliveries")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("device_id", deviceId)
+        .eq("user_id", userId)
+        .gte("sent_at", cooldownSince)
+        .limit(1)
+        .maybeSingle();
+      if (recentDeliveryError || recentDelivery) continue;
+
       const { error: deliveryError } = await supabase.from("asset_movement_email_deliveries").insert({
         organization_id: organizationId,
         device_id: deviceId,
@@ -116,10 +127,7 @@ export async function sendAssignedAssetEventNotifications(
     const { data: authUser } = await supabase.auth.admin.getUserById(row.user_id);
     if (authUser.user?.email) recipients.set(authUser.user.email.toLowerCase(), row.user_id);
   }
-  const { data: organization } = await supabase.from("organizations").select("alert_emails").eq("id", organizationId).maybeSingle();
-  for (const email of (organization?.alert_emails ?? []) as string[]) {
-    if (typeof email === "string" && email.includes("@")) recipients.set(email.toLowerCase(), "");
-  }
+  // Event notifications also stay limited to explicitly assigned users.
   const { data: vehicle } = vehicleId
     ? await supabase.from("vehicles").select("name,registration_number").eq("id", vehicleId).maybeSingle()
     : { data: null };
