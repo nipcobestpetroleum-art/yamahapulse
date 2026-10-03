@@ -1,0 +1,1 @@
+ALTER TABLE public.device_commands ADD CONSTRAINT device_commands_reason_check CHECK (reason IS NOT NULL AND length(btrim(reason)) >= 10);

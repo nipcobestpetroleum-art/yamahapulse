@@ -1,0 +1,1 @@
+DROP POLICY "device_commands_update" ON public.device_commands

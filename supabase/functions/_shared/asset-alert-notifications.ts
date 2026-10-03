@@ -90,6 +90,8 @@ export async function sendAssignedAssetMovementEmails(
       headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: "YamahaPulse Alerts <YamahaAlerts@ipmanpay.cloud>", to: [email], subject, html, text }),
     });
+    const deliveryStatus = response.ok ? "SENT" : response.status === 429 ? "RATE_LIMITED" : "FAILED";
+    await supabase.from("notification_delivery_logs").insert({ organization_id: organizationId, device_id: deviceId, user_id: userId || null, channel: "EMAIL", notification_type: "ASSET_MOVEMENT", status: deliveryStatus, provider_status: response.status, correlation_id: `${deviceId}:${recordedAt}` });
     if (!response.ok) console.error("[asset-movement-email] email delivery failed", { email, deviceId, status: response.status });
   }
 }

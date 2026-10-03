@@ -103,6 +103,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Alert Rules", href: "/monitoring/alert-rules", icon: Siren, implemented: true },
       { title: "Events", href: "/monitoring/events", icon: Activity, implemented: true },
       { title: "Crash Incidents", href: "/monitoring/incidents", icon: ShieldAlert, implemented: true },
+      { title: "Monitoring Intelligence", href: "/monitoring/intelligence", icon: BrainCircuit, implemented: true },
     ],
   },
   {
@@ -139,6 +140,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Tires", href: "/maintenance/tires", icon: Disc3, implemented: true },
       { title: "Documents", href: "/maintenance/documents", icon: FileText, implemented: true },
       { title: "Maintenance Intervals", href: "/maintenance/intervals", icon: SlidersHorizontal, implemented: true },
+      { title: "Predictive Maintenance", href: "/maintenance/forecasts", icon: CalendarClock, implemented: true },
     ],
   },
   {

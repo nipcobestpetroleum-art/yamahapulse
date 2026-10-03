@@ -40,6 +40,7 @@ import AlertRulesPage from "./pages/monitoring/AlertRulesPage";
 import PlaybackPage from "./pages/monitoring/PlaybackPage";
 import EventsPage from "./pages/monitoring/EventsPage";
 import CrashIncidentsPage from "./pages/monitoring/CrashIncidentsPage";
+import IntelligencePage from "./pages/monitoring/IntelligencePage";
 import FuelDashboardPage from "./pages/fuel/FuelDashboardPage";
 import FuelSensorsPage from "./pages/fuel/FuelSensorsPage";
 import FuelCalibrationPage from "./pages/fuel/FuelCalibrationPage";
@@ -55,6 +56,7 @@ import InspectionsPage from "./pages/maintenance/InspectionsPage";
 import TiresPage from "./pages/maintenance/TiresPage";
 import DocumentsPage from "./pages/maintenance/DocumentsPage";
 import MaintenanceIntervalsPage from "./pages/maintenance/MaintenanceIntervalsPage";
+import ForecastPage from "./pages/maintenance/ForecastPage";
 import CamerasPage from "./pages/video/CamerasPage";
 import LiveVideoPage from "./pages/video/LiveVideoPage";
 import VideoEventsPage from "./pages/video/VideoEventsPage";
@@ -149,6 +151,7 @@ const App = () => (
               <Route path="/monitoring/playback" element={<PlaybackPage />} />
               <Route path="/monitoring/events" element={<EventsPage />} />
               <Route path="/monitoring/incidents" element={<CrashIncidentsPage />} />
+              <Route path="/monitoring/intelligence" element={<IntelligencePage />} />
               <Route path="/maintenance/schedule" element={<MaintenancePage />} />
 
               {/* Phase 4 */}
@@ -171,6 +174,7 @@ const App = () => (
               <Route path="/maintenance/tires" element={<TiresPage />} />
               <Route path="/maintenance/documents" element={<DocumentsPage />} />
               <Route path="/maintenance/intervals" element={<MaintenanceIntervalsPage />} />
+              <Route path="/maintenance/forecasts" element={<ForecastPage />} />
               <Route element={<RequireRoles />}>
                 <Route path="/video/cameras" element={<CamerasPage />} />
                 <Route path="/video/live" element={<LiveVideoPage />} />

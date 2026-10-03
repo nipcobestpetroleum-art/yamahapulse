@@ -155,13 +155,12 @@ export default function AssetDetailPage() {
       showError("Password verification failed. The command was not sent.");
       return;
     }
-    const { error } = await supabase.from("device_commands").insert({
-      organization_id: currentOrg.id,
-      device_id: device.id,
-      vehicle_id: vehicle.id,
-      command,
-      requested_by: user.id,
-      reason: reason.trim(),
+    const { error } = await supabase.rpc("request_engine_command", {
+      p_organization_id: currentOrg.id,
+      p_device_id: device.id,
+      p_vehicle_id: vehicle.id,
+      p_command: command,
+      p_reason: reason.trim(),
     });
     setSending(false);
     if (error) { showError(error.message); return; }

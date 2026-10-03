@@ -15,6 +15,20 @@ function corsResponse(body: unknown, status = 200) {
   });
 }
 
+async function recordIngestHealth(supabase: any, result: { organization_id?: string | null; device_id?: string | null; recorded_at?: string | null }, status: "HEALTHY" | "DELAYED" | "STALE" | "INVALID") {
+  if (!result.organization_id || !result.device_id) return;
+  const receivedAt = new Date().toISOString();
+  await supabase.from("telemetry_ingest_health").upsert({
+    organization_id: result.organization_id,
+    device_id: result.device_id,
+    last_received_at: receivedAt,
+    last_recorded_at: result.recorded_at ?? null,
+    last_status: status,
+    packet_count: 1,
+    updated_at: receivedAt,
+  }, { onConflict: "organization_id,device_id" });
+}
+
 function toNumber(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -374,10 +388,11 @@ serve(async (req) => {
 
     // Critical-event email dispatch per record (no-op unless critical events exist)
     for (const r of results) {
+      await recordIngestHealth(supabase, r, "HEALTHY");
       const criticalEvents = Array.isArray(r.critical_events) ? r.critical_events : [];
       if (criticalEvents.length > 0 && r.organization_id) {
         try {
-          await sendCriticalAlertEmails(supabase, r.organization_id, criticalEvents, {
+          await sendCriticalAlertEmails(supabase, r.organization_id, r.device_id, criticalEvents, {
             vehicleId: r.vehicle_id ?? null,
             latitude: r.latitude!,
             longitude: r.longitude!,
@@ -439,6 +454,7 @@ serve(async (req) => {
   if (result.test) {
     return corsResponse({ ok: true, test: true, device_id: result.device_id, message: "Device recognized" });
   }
+  await recordIngestHealth(supabase, result, "HEALTHY");
   if (result.device_id && result.recorded_at) {
     await persistLocationMetadata(supabase, result.device_id, result.recorded_at, {
       source: String(location.source),
@@ -451,7 +467,7 @@ serve(async (req) => {
   const criticalEvents = Array.isArray(result.critical_events) ? result.critical_events : [];
   if (criticalEvents.length > 0) {
     try {
-      await sendCriticalAlertEmails(supabase, result.organization_id!, criticalEvents, {
+      await sendCriticalAlertEmails(supabase, result.organization_id!, result.device_id!, criticalEvents, {
         vehicleId: result.vehicle_id ?? null,
         latitude: result.latitude!,
         longitude: result.longitude!,
@@ -507,6 +523,7 @@ async function sendCriticalAlertEmails(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   orgId: string,
+  deviceId: string,
   criticalEvents: Array<{ type: string; message: string }>,
   context: {
     vehicleId: string | null;
@@ -520,11 +537,22 @@ async function sendCriticalAlertEmails(
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("name, alert_emails")
+    .select("name")
     .eq("id", orgId)
     .maybeSingle();
 
-  const recipients: string[] = org?.alert_emails ?? [];
+  const { data: accessRows, error: accessError } = await supabase
+    .from("user_asset_access")
+    .select("user_id")
+    .eq("organization_id", orgId)
+    .eq("device_id", deviceId);
+  if (accessError || !accessRows?.length) return;
+
+  const recipients: string[] = [];
+  for (const row of accessRows as { user_id: string }[]) {
+    const { data: authUser } = await supabase.auth.admin.getUserById(row.user_id);
+    if (authUser.user?.email) recipients.push(authUser.user.email.toLowerCase());
+  }
   if (recipients.length === 0) return;
 
   let vehicleLabel = "Unassigned device";
@@ -677,8 +705,10 @@ async function sendCriticalAlertEmails(
     }),
   });
 
+  const providerMessage = await res.text();
+  await supabase.from("notification_delivery_logs").insert(recipients.map((email) => ({ organization_id: orgId, device_id: deviceId, channel: "EMAIL", notification_type: "CRITICAL_ALERT", status: res.ok ? "SENT" : res.status === 429 ? "RATE_LIMITED" : "FAILED", provider_status: res.status, provider_message: providerMessage.slice(0, 500), correlation_id: `${deviceId}:${context.recordedAt}` })));
   if (!res.ok) {
-    console.error("[ingest] resend email send failed", await res.text());
+    console.error("[ingest] resend email send failed", { status: res.status, recipients: recipients.length });
   } else {
     console.log(`[ingest] critical alert email sent to ${recipients.length} recipient(s)`);
   }
