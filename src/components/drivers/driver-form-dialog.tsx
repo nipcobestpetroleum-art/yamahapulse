@@ -134,8 +134,7 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
     return path;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveDriver = async () => {
     if (!currentOrg) return;
     if (!firstName.trim() || !lastName.trim()) {
       showError("Enter at least the first and last name.");
@@ -231,7 +230,13 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveDriver();
+          }}
+          className="space-y-4"
+        >
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="dr-first">First name *</Label>
@@ -366,7 +371,11 @@ export function DriverFormDialog({ open, onOpenChange, driver, onSaved }: Props)
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !firstName.trim() || !lastName.trim()}>
+            <Button
+              type="button"
+              onClick={() => void saveDriver()}
+              disabled={saving || !firstName.trim() || !lastName.trim()}
+            >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
               {driver ? "Save changes" : "Add driver"}
             </Button>
